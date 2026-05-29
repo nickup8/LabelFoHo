@@ -11,8 +11,8 @@ class GenerateLabels
         private LabelSessionService $sessionService,
     ) {}
 
-    public function handle(LabelSession $session, string $format = 'pdf'): LabelSession
+    public function handle(LabelSession $session): LabelSession
     {
-        return $this->sessionService->generate($session, $format);
+        return $this->sessionService->generate($session);
     }
 }

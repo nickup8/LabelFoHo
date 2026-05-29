@@ -15,7 +15,6 @@ class GenerateLabelsRequest extends FormRequest
     {
         return [
             'session_id' => 'required|string|exists:label_sessions,id',
-            'format' => 'required|string|in:pdf,zip',
         ];
     }
 }

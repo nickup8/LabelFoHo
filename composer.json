@@ -18,7 +18,8 @@
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",
         "phpoffice/phpspreadsheet": "*",
-        "picqer/php-barcode-generator": "*"
+        "picqer/php-barcode-generator": "*",
+        "spatie/browsershot": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",

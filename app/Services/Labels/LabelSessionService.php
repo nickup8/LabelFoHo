@@ -11,7 +11,6 @@ class LabelSessionService
     public function __construct(
         private ExcelParsingService $excelParsingService,
         private ValidationService $validationService,
-        private PdfGenerationService $pdfGenerationService,
     ) {}
 
     public function createFromUpload(UploadedFile $file): LabelSession
@@ -54,21 +53,9 @@ class LabelSessionService
         return $session->fresh();
     }
 
-    public function generate(LabelSession $session, string $format = 'pdf'): LabelSession
+    public function generate(LabelSession $session): LabelSession
     {
-        $rows = $session->validation_results;
-        $templateId = $session->template_id ?? 'foho_default';
-
-        $outputPath = $this->pdfGenerationService->saveMultiple(
-            $rows,
-            $templateId,
-            $session->id,
-            $format
-        );
-
         $session->update([
-            'output_path' => $outputPath,
-            'output_format' => $format,
             'status' => 'generated',
         ]);
 

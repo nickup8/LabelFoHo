@@ -11,9 +11,8 @@ use App\Models\LabelSession;
 use App\Services\Labels\BarcodeService;
 use App\Services\Labels\LabelSessionService;
 use App\Services\Labels\TemplateService;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class LabelController extends Controller
 {
@@ -130,7 +129,7 @@ class LabelController extends Controller
     {
         $session = LabelSession::findOrFail($request->input('session_id'));
 
-        $session = $action->handle($session, $request->input('format'));
+        $session = $action->handle($session);
 
         return redirect()->route('labels.index', [
             'session' => $session->id,
@@ -138,32 +137,72 @@ class LabelController extends Controller
         ]);
     }
 
-    public function download(): BinaryFileResponse
+    public function download()
     {
-        $sessionId = request()->query('session_id');
-        $format = request()->query('format', 'pdf');
+        try {
+            $sessionId = request()->query('session_id');
 
-        $session = LabelSession::findOrFail($sessionId);
+            if (! $sessionId) {
+                return response()->json([
+                    'error' => 'Параметр session_id обязателен.',
+                ], 422);
+            }
 
-        $expectedPath = "labels/{$session->id}/labels.{$format}";
+            $session = LabelSession::findOrFail($sessionId);
+            $rows = $session->validation_results ?? [];
 
-        if (! Storage::exists($expectedPath)) {
-            $action = app(GenerateLabels::class);
-            $action->handle($session, $format);
+            $brandConfig = $this->templateService->getBrandConfig();
+            $templateId = $session->template_id ?? 'foho_default';
+            $static = $this->templateService->getStaticContent($templateId);
+
+            $labels = [];
+
+            foreach ($rows as $row) {
+                $data = $row['data'] ?? [];
+                $recycling = $data['recycling'] ?? null;
+                $barcode = $data['barcode'] ?? '';
+
+                $labels[] = [
+                    'row' => $row['row'] ?? null,
+                    'title' => $data['product_name'] ?? 'Набор салфеток для сервировки стола — 4 шт.',
+                    'brand' => $brandConfig['trademark'] ?? 'FoHo',
+                    'sku' => $data['supplier_article'] ?? '',
+                    'size' => $data['size'] ?? '',
+                    'is_circular' => $data['is_circular'] ?? false,
+                    'composition' => $data['composition'] ?? '',
+                    'importer_name' => $static['importer'] ?? 'ИП Климин П. А.',
+                    'importer_address' => '358007, Россия, респ. Калмыкия, г. Элиста, пос. Салын, ул. Красная, 9',
+                    'importer_phone' => '+7 (995) 771-27-92',
+                    'manufacturer' => $data['manufacturer'] ?? ($static['manufacturer_default'] ?? 'Ningbo Huafu Home Goods Co., Ltd'),
+                    'manufacture_date' => $data['manufacture_date'] ?? null,
+                    'barcode' => $barcode,
+                    'barcode_data_uri' => $barcode
+                        ? $this->barcodeService->generateEan13DataUri($barcode)
+                        : null,
+                    'recycle_code' => $recycling['code'] ?? '03',
+                    'recycle_label' => $recycling['label'] ?? 'PVC',
+                    'certification_marks' => $static['certification_marks'] ?? ['EAC'],
+                    'regulation_text' => 'Соответствует требованиям ТР ТС 017/2011 «О безопасности продукции легкой промышленности»',
+                ];
+            }
+
+            return response()->json([
+                'session_id' => $session->id,
+                'template_id' => $templateId,
+                'labels' => $labels,
+                'count' => count($labels),
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('[Labels] Ошибка получения данных для PDF: '.$e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Не удалось загрузить данные для генерации PDF.',
+                'message' => $e->getMessage(),
+            ], 500);
         }
-
-        $fullPath = Storage::path($expectedPath);
-
-        if (! file_exists($fullPath)) {
-            abort(404, 'Файл не найден');
-        }
-
-        $filename = "foho_labels_{$session->id}.{$format}";
-
-        return response()->download($fullPath, $filename, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ]);
     }
 
 }

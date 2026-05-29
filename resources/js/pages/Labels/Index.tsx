@@ -76,7 +76,7 @@ export default function LabelsWizard({
                         previewData={previewData}
                     />
                 )}
-                {step === 5 && <ExportStep />}
+                {step === 5 && session && <ExportStep sessionId={session.id} />}
             </div>
         </>
     );
