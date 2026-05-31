@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import {
     Document,
     Page,
@@ -96,12 +97,17 @@ const styles = StyleSheet.create({
     },
     barcodeImage: {
         width: 350,
-        height: '100%',
+        height: 78,
     },
     barcodeNumber: {
         marginTop: 8,
         textAlign: 'center',
         fontSize: 16,
+    },
+    barcodePlaceholder: {
+        fontSize: 8,
+        letterSpacing: 4,
+        color: '#a3a3a3',
     },
     recycleRow: {
         flexDirection: 'row',
@@ -143,7 +149,7 @@ function FoHoLogoSvg() {
     );
 }
 
-function SingleLabel({ label }: { label: LabelData }) {
+const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
     const sizeText = label.is_circular
         ? `${label.size} (диаметр одного изделия)`
         : label.size;
@@ -215,15 +221,6 @@ function SingleLabel({ label }: { label: LabelData }) {
                     </Text>
                 </View>
 
-                {/* {label.certification_marks.length > 0 && (
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Сертификация: </Text>
-                        <Text style={styles.value}>
-                            {label.certification_marks.join(', ')}
-                        </Text>
-                    </View>
-                )} */}
-
                 <View style={styles.regulation}>
                     <Text style={styles.regulationLine}>
                         Соответствует требованиям ТР ТС 017/2011
@@ -239,15 +236,10 @@ function SingleLabel({ label }: { label: LabelData }) {
                     <Image
                         source={label.barcode_data_uri}
                         style={styles.barcodeImage}
+                        cache={true}
                     />
                 ) : (
-                    <Text
-                        style={{
-                            fontSize: 8,
-                            letterSpacing: 4,
-                            color: '#a3a3a3',
-                        }}
-                    >
+                    <Text style={styles.barcodePlaceholder}>
                         ||||| ШТРИХКОД |||||
                     </Text>
                 )}
@@ -256,7 +248,7 @@ function SingleLabel({ label }: { label: LabelData }) {
             <Text style={styles.barcodeNumber}>{label.barcode}</Text>
         </View>
     );
-}
+});
 
 interface Props {
     labels: LabelData[];

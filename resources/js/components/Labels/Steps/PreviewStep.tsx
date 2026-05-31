@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { ArrowLeft, Eye, FileText } from 'lucide-react';
+import { ArrowLeft, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import labels from '@/routes/labels';
 
@@ -46,6 +46,7 @@ interface Props {
   session: Session;
   templates: Record<string, Template>;
   previewData: PreviewData;
+  onExport: () => void;
 }
 
 function LabelMockup({ data }: { data: PreviewData }) {
@@ -100,17 +101,12 @@ function LabelMockup({ data }: { data: PreviewData }) {
   );
 }
 
-export default function PreviewStep({ session, templates: _templates, previewData }: Props) {
+export default function PreviewStep({ session, templates: _templates, previewData, onExport }: Props) {
   const handleBack = () =>
     router.get(labels.index({ query: { session: session.id, step: 3 } }).url);
 
-  const handleExport = () =>
-    router.get(labels.index({ query: { session: session.id, step: 5 } }).url);
-
   return (
     <div className="space-y-10 max-w-5xl">
-
-      {/* Stepper */}
       <nav aria-label="Прогресс" className="relative">
         <div className="absolute left-0 right-0 top-5 h-0.5 bg-zinc-200 dark:bg-zinc-800" />
         <div className="flex items-center justify-between">
@@ -149,7 +145,6 @@ export default function PreviewStep({ session, templates: _templates, previewDat
         </div>
       </nav>
 
-      {/* Heading */}
       <div className="flex items-center gap-3">
         <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--color-accent)]/10">
           <Eye className="size-5 text-[var(--color-accent)]" />
@@ -158,26 +153,23 @@ export default function PreviewStep({ session, templates: _templates, previewDat
           <h1 className="text-2xl font-bold text-[var(--color-fg)] dark:text-zinc-100">
             Предпросмотр этикеток
           </h1>
-        <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
-          Проверьте внешний вид сгенерированных этикеток перед сохранением в PDF
-        </p>
+          <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
+            Проверьте внешний вид сгенерированных этикеток перед сохранением в PDF
+          </p>
         </div>
       </div>
 
-      {/* Labels grid — full width */}
       <div className="border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900/50 rounded-xl p-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <LabelMockup data={previewData} />
           <LabelMockup data={previewData} />
           <LabelMockup data={previewData} />
         </div>
-
         <div className="text-center text-xs text-[var(--color-muted)] dark:text-zinc-500 mt-6">
           Показано превью этикеток для предварительного контроля
         </div>
       </div>
 
-      {/* Navigation */}
       <div className="flex items-center justify-between pt-2">
         <button
           type="button"
@@ -190,11 +182,11 @@ export default function PreviewStep({ session, templates: _templates, previewDat
 
         <button
           type="button"
-          onClick={handleExport}
+          onClick={onExport}
           className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:opacity-95"
         >
-          <FileText className="size-4" />
-          Создать PDF
+          <Eye className="size-4" />
+          Сформировать PDF
         </button>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { Head } from '@inertiajs/react';
 import UploadStep from '@/pages/Labels/Steps/UploadStep';
 import AuditStep from '@/components/Labels/Steps/AuditStep';
@@ -59,24 +60,35 @@ export default function LabelsWizard({
     templates,
     previewData,
 }: Props) {
+    const [localStep, setLocalStep] = useState<number | null>(null);
+
+    const effectiveStep = localStep ?? step;
+
+    const handleExport = useCallback(() => {
+        setLocalStep(5);
+    }, []);
+
     return (
         <>
             <Head title="Генерация бирок FoHo" />
 
             <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-                {step === 1 && <UploadStep />}
-                {step === 2 && session && <AuditStep session={session} />}
-                {step === 3 && session && (
+                {effectiveStep === 1 && <UploadStep />}
+                {effectiveStep === 2 && session && <AuditStep session={session} />}
+                {effectiveStep === 3 && session && (
                     <TemplateStep session={session} templates={templates} />
                 )}
-                {step === 4 && session && previewData && (
+                {effectiveStep === 4 && session && previewData && (
                     <PreviewStep
                         session={session}
                         templates={templates}
                         previewData={previewData}
+                        onExport={handleExport}
                     />
                 )}
-                {step === 5 && session && <ExportStep sessionId={session.id} />}
+                {effectiveStep === 5 && session && (
+                    <ExportStep sessionId={session.id} />
+                )}
             </div>
         </>
     );
