@@ -5,6 +5,11 @@ import { initializeTheme } from '@/hooks/use-appearance';
 import AuthenticatedLayout from '@/layouts/authenticated-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import { Buffer } from 'buffer';
+
+if (typeof window !== 'undefined') {
+    (window as unknown as Record<string, unknown>).Buffer ??= Buffer;
+}
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

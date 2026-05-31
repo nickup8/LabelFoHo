@@ -5,8 +5,7 @@ import {
     CheckCircle2,
     AlertCircle,
     ArrowLeft,
-    LoaderCircle,
-    ChevronDown,
+    Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PdfEngine from '@/components/Labels/PdfEngine';
@@ -24,26 +23,98 @@ interface Props {
     sessionId: string;
 }
 
-function GeneratingOverlay({ compiling }: { compiling: boolean }) {
+const FETCHING_MESSAGES = [
+    'Магия FoHo запрашивает данные...',
+    'Священные алгоритмы связываются с сервером...',
+    'Извлекаем подготовленную структуру бирок...',
+];
+
+const COMPILING_MESSAGES = [
+    'Данные получены! Начинаем плести штрихкоды...',
+    'Браузер компилирует PDF-страницы...',
+    'Укладываем этикетки в идеальный макет...',
+];
+
+function FoHoMagic({
+    status,
+}: {
+    status: 'fetching' | 'compiling' | 'ready' | 'error';
+}) {
+    const [msgIndex, setMsgIndex] = useState(0);
+    const messages =
+        status === 'fetching' ? FETCHING_MESSAGES : COMPILING_MESSAGES;
+
+    useEffect(() => {
+        setMsgIndex(0);
+        const id = setInterval(() => {
+            setMsgIndex((i) => (i + 1) % messages.length);
+        }, 1300);
+        return () => clearInterval(id);
+    }, [status]);
+
     return (
         <div className="flex flex-col items-center justify-center py-24">
-            <div className="relative flex items-center justify-center">
-                <LoaderCircle className="size-16 animate-spin text-[var(--color-accent)]" />
-                <div className="absolute animate-spin [animation-direction:reverse]">
-                    <ChevronDown className="size-6 text-[var(--color-accent)]/80" />
-                </div>
-            </div>
-            <p className="mt-8 text-sm text-[var(--color-muted)] dark:text-zinc-400 animate-pulse text-center max-w-xs">
-                {compiling
-                    ? 'Браузер компилирует PDF-страницы... Пожалуйста, не закрывайте вкладку'
-                    : 'Загружаем данные этикеток...'}
+            <svg width="0" height="0" className="absolute">
+                <defs>
+                    <linearGradient
+                        id="sparkle-purple"
+                        x1="0"
+                        y1="0"
+                        x2="1"
+                        y2="1"
+                    >
+                        <stop offset="0%" stopColor="#9333ea" />
+                        <stop offset="100%" stopColor="#6366f1" />
+                    </linearGradient>
+                    <linearGradient
+                        id="sparkle-pink"
+                        x1="0"
+                        y1="0"
+                        x2="1"
+                        y2="1"
+                    >
+                        <stop offset="0%" stopColor="#ec4899" />
+                        <stop offset="100%" stopColor="#fb7185" />
+                    </linearGradient>
+                </defs>
+            </svg>
+
+            <p className="mb-6 text-[10px] font-semibold tracking-[0.25em] text-[var(--color-muted)]/50 uppercase dark:text-zinc-500/50">
+                МАГИЯ FOHO
             </p>
+
+            <div className="relative mb-8 h-28 w-28">
+                <Sparkles
+                    size={80}
+                    className="absolute top-1 left-1 animate-[spin_5s_linear_infinite]"
+                    style={{ stroke: 'url(#sparkle-purple)' }}
+                />
+                <Sparkles
+                    size={40}
+                    className="absolute right-0 bottom-1"
+                    style={{
+                        stroke: 'url(#sparkle-pink)',
+                        animation: 'spin 3.5s linear infinite reverse',
+                    }}
+                />
+            </div>
+
+            <div className="min-h-[1.5rem] animate-pulse">
+                <p
+                    key={msgIndex}
+                    className="max-w-xs animate-[fadeIn_0.3s_ease-out] text-center text-sm text-[var(--color-muted)] dark:text-zinc-400"
+                >
+                    {messages[msgIndex]}
+                </p>
+            </div>
         </div>
     );
 }
 
 export default function ExportStep({ sessionId }: Props) {
-    const [status, setStatus] = useState<'fetching' | 'compiling' | 'ready' | 'error'>('fetching');
+    const [status, setStatus] = useState<
+        'fetching' | 'compiling' | 'ready' | 'error'
+    >('fetching');
     const [labels, setLabels] = useState<LabelData[] | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [fetchKey, setFetchKey] = useState(0);
@@ -73,7 +144,9 @@ export default function ExportStep({ sessionId }: Props) {
             }
 
             try {
-                const res = await fetch(`/labels/download?session_id=${sessionId}`);
+                const res = await fetch(
+                    `/labels/download?session_id=${sessionId}`,
+                );
 
                 if (cancelled) return;
 
@@ -119,6 +192,17 @@ export default function ExportStep({ sessionId }: Props) {
 
     return (
         <div className="mx-auto max-w-2xl space-y-10 py-12">
+            <style>{`
+                @keyframes fadeScaleIn {
+                    from { opacity: 0; transform: scale(0.95); }
+                    to { opacity: 1; transform: scale(1); }
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+            `}</style>
+
             <nav aria-label="Прогресс" className="relative">
                 <div className="absolute top-5 right-0 left-0 h-0.5 bg-zinc-200 dark:bg-zinc-800" />
                 <div className="flex items-center justify-between">
@@ -171,9 +255,7 @@ export default function ExportStep({ sessionId }: Props) {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-[var(--color-fg)] dark:text-zinc-100">
-                        {status === 'ready'
-                            ? 'Этикетки готовы'
-                            : 'Экспорт PDF'}
+                        {status === 'ready' ? 'Этикетки готовы' : 'Экспорт PDF'}
                     </h1>
                     <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
                         {status === 'fetching' && 'Загрузка данных...'}
@@ -186,13 +268,13 @@ export default function ExportStep({ sessionId }: Props) {
             </div>
 
             {(status === 'fetching' || status === 'compiling') && (
-                <div className="border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900/50 rounded-xl">
-                    <GeneratingOverlay compiling={status === 'compiling'} />
+                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] dark:border-zinc-800 dark:bg-zinc-900/50">
+                    <FoHoMagic status={status} />
                 </div>
             )}
 
             {status === 'ready' && objectUrlRef.current && (
-                <>
+                <div className="animate-[fadeScaleIn_0.5s_ease-out] space-y-6">
                     <div className="text-center">
                         <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-500 dark:text-green-400" />
                         <h2 className="text-3xl font-bold text-[var(--color-fg)] dark:text-zinc-100">
@@ -236,7 +318,7 @@ export default function ExportStep({ sessionId }: Props) {
                             )}
                         >
                             <Download className="size-4" />
-                            Скачать PDF
+                            Скачать мгновенно
                         </a>
                     </div>
 
@@ -249,11 +331,11 @@ export default function ExportStep({ sessionId }: Props) {
                             Создать новый пакет
                         </a>
                     </div>
-                </>
+                </div>
             )}
 
             {status === 'error' && (
-                <div className="border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900/50 rounded-xl p-8">
+                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-8 dark:border-zinc-800 dark:bg-zinc-900/50">
                     <div className="flex flex-col items-center gap-4 py-8 text-center">
                         <AlertCircle className="size-12 text-red-500" />
                         <div>
@@ -276,9 +358,7 @@ export default function ExportStep({ sessionId }: Props) {
                 </div>
             )}
 
-            {labels && (
-                <PdfEngine labels={labels} onReady={handleBlobReady} />
-            )}
+            {labels && <PdfEngine labels={labels} onReady={handleBlobReady} />}
         </div>
     );
 }

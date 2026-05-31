@@ -116,8 +116,10 @@
         $article = $d['supplier_article'] ?? '';
         $manufacturer = $d['manufacturer'] ?? $layout['manufacturer_name'] ?? 'Ningbo Huafu Home Goods Co., Ltd';
         $manufactureDate = !empty($d['manufacture_date'])
-            ? \Carbon\Carbon::parse($d['manufacture_date'])->translatedFormat('F Y')
-            : \Carbon\Carbon::now()->translatedFormat('F Y');
+            ? (preg_match('/[а-яё]/ui', $d['manufacture_date'])
+                ? $d['manufacture_date']
+                : \Carbon\Carbon::parse($d['manufacture_date'])->locale('ru')->translatedFormat('F Y'))
+            : \Carbon\Carbon::now()->locale('ru')->translatedFormat('F Y');
         $recycleCode = $recycling['code'] ?? '3';
         $recycleLabel = $recycling['label'] ?? 'PVC';
     @endphp

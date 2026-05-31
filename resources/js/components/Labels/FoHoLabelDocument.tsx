@@ -12,6 +12,21 @@ import {
 } from '@react-pdf/renderer';
 import type { LabelData } from '@/types/labels';
 
+function capitalizeFirstLetter(str: string): string {
+    if (!str) return str;
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function formatDate(dateStr: string | null): string {
+    if (!dateStr) return '';
+    if (/[а-яё]/i.test(dateStr)) return capitalizeFirstLetter(dateStr);
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return dateStr;
+    return capitalizeFirstLetter(
+        d.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })
+    );
+}
+
 Font.register({
     family: 'Roboto',
     fonts: [
@@ -217,7 +232,7 @@ const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
                 <View style={styles.row}>
                     <Text style={styles.label}>Дата производства: </Text>
                     <Text style={styles.value}>
-                        {label.manufacture_date ?? ''}
+                        {formatDate(label.manufacture_date)}
                     </Text>
                 </View>
 

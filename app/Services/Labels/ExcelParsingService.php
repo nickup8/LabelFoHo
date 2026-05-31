@@ -2,6 +2,7 @@
 
 namespace App\Services\Labels;
 
+use Carbon\Carbon;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 
@@ -43,7 +44,7 @@ class ExcelParsingService
     {
         $spreadsheet = IOFactory::load($filePath);
         $worksheet = $spreadsheet->getActiveSheet();
-        $rows = $worksheet->toArray(null, true, true, false);
+        $rows = $worksheet->toArray(null, true, false, false);
 
         if (empty($rows)) {
             return ['headers' => [], 'rows' => []];
@@ -70,7 +71,11 @@ class ExcelParsingService
                 $value = $row[$colIndex] ?? '';
 
                 if ($value instanceof \DateTimeInterface || $this->isNumericDate($value)) {
-                    $value = Date::excelToDateTimeObject($value)->format('Y-m-d');
+                    $date = $value instanceof \DateTimeInterface
+                        ? $value
+                        : Date::excelToDateTimeObject($value);
+                    $value = Carbon::instance($date)->locale('ru')->isoFormat('MMMM YYYY');
+                    $value = mb_strtoupper(mb_substr($value, 0, 1)) . mb_substr($value, 1);
                 } else {
                     $value = trim((string) $value);
                 }
