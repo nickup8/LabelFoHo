@@ -23,7 +23,7 @@ class PdfGenerationService
             'importer_name' => $template?->importer_name ?? 'ИП Климин П. А.',
             'importer_address' => $template?->importer_address ?? '358007, Россия, респ. Калмыкия, г. Элиста, пос. Салын, ул. Красная, 9',
             'importer_phone' => $template?->importer_phone ?? '+7 (995) 771-27-92',
-            'manufacturer_name' => $template?->manufacturer_name ?? 'Ningbo Huafu Home Goods Co., Ltd',
+            'manufacturer_name' => $template?->manufacturer_name ?? '',
             'canvas_elements' => $template?->canvas_elements,
         ];
     }

@@ -14,11 +14,9 @@ class TemplateController extends Controller
 
         if (! $template) {
             $template = LabelTemplate::create([
-                'title' => 'FoHo Стандарт',
                 'importer_name' => 'ИП Климин П. А.',
                 'importer_address' => '358007, Россия, респ. Калмыкия, г. Элиста, пос. Салын, ул. Красная, 9',
                 'importer_phone' => '+7 (995) 771-27-92',
-                'manufacturer_name' => 'Ningbo Huafu Home Goods Co., Ltd',
                 'default_width_px' => 469,
                 'default_height_px' => 634,
                 'is_active' => true,

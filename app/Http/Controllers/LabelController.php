@@ -173,7 +173,8 @@ class LabelController extends Controller
                     'importer_name' => $static['importer'] ?? 'ИП Климин П. А.',
                     'importer_address' => '358007, Россия, респ. Калмыкия, г. Элиста, пос. Салын, ул. Красная, 9',
                     'importer_phone' => '+7 (995) 771-27-92',
-                    'manufacturer' => $data['manufacturer'] ?? ($static['manufacturer_default'] ?? 'Ningbo Huafu Home Goods Co., Ltd'),
+                    'manufacturer' => $data['factory_name'] ?? $data['manufacturer'] ?? '',
+                    'factory_name' => $data['factory_name'] ?? '',
                     'manufacture_date' => $data['manufacture_date'] ?? null,
                     'barcode' => $barcode,
                     'barcode_data_uri' => $barcode

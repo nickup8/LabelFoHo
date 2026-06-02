@@ -114,7 +114,7 @@
         $composition = $d['composition'] ?? '';
         $productName = $d['product_name'] ?? 'Набор салфеток для сервировки стола - 2 шт.';
         $article = $d['supplier_article'] ?? '';
-        $manufacturer = $d['manufacturer'] ?? $layout['manufacturer_name'] ?? 'Ningbo Huafu Home Goods Co., Ltd';
+        $manufacturer = $d['factory_name'] ?? $d['manufacturer'] ?? $layout['manufacturer_name'] ?? '';
         $manufactureDate = !empty($d['manufacture_date'])
             ? (preg_match('/[а-яё]/ui', $d['manufacture_date'])
                 ? $d['manufacture_date']

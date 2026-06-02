@@ -25,6 +25,7 @@ export interface LabelData {
     importer_address: string;
     importer_phone: string;
     manufacturer: string;
+    factory_name: string;
     manufacture_date: string | null;
     barcode: string;
     barcode_data_uri: string | null;

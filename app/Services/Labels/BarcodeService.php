@@ -2,15 +2,22 @@
 
 namespace App\Services\Labels;
 
-use Picqer\Barcode\BarcodeGeneratorPNG;
+use Picqer\Barcode\BarcodeGeneratorSVG;
 
 class BarcodeService
 {
+    private const int MODULES_EAN13 = 95;
+
     public function generateEan13(string $barcode): string
     {
-        $generator = new BarcodeGeneratorPNG;
+        $generator = new BarcodeGeneratorSVG;
 
-        return $generator->getBarcode($barcode, $generator::TYPE_EAN_13, 2, 50);
+        return $generator->getBarcode(
+            $barcode,
+            $generator::TYPE_EAN_13,
+            widthFactor: 4,
+            height: 78,
+        );
     }
 
     public function generateEan13Base64(string $barcode): string
@@ -20,7 +27,7 @@ class BarcodeService
 
     public function generateEan13DataUri(string $barcode): string
     {
-        return 'data:image/png;base64,'.$this->generateEan13Base64($barcode);
+        return 'data:image/svg+xml;base64,'.$this->generateEan13Base64($barcode);
     }
 
     public function validateEan13(string $barcode): bool

@@ -24,11 +24,12 @@ return [
                 'Размер товара' => 'size',
                 'Состав' => 'composition',
                 'Изготовитель' => 'manufacturer',
+                'Название фабрики' => 'factory_name',
                 'Дата производства' => 'manufacture_date',
             ],
 
             'validation' => [
-                'required' => ['barcode', 'supplier_article', 'product_name', 'size'],
+                'required' => ['barcode', 'supplier_article', 'product_name', 'size', 'factory_name'],
                 'barcode' => [
                     'type' => 'ean13',
                     'length' => 13,
@@ -96,7 +97,7 @@ return [
                 'trademark' => 'FoHo',
                 'importer' => 'ИП Климин П.А.',
                 'certification_marks' => ['EAC', 'ТР ТС 017/2011'],
-                'manufacturer_default' => 'Ningbo Huafu',
+                'manufacturer_default' => '',
             ],
         ],
     ],

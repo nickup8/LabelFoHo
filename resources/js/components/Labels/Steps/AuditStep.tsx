@@ -23,6 +23,7 @@ interface RowData {
   size: string;
   composition: string;
   manufacturer: string;
+  factory_name: string;
   manufacture_date: string;
 }
 
@@ -198,6 +199,7 @@ export default function AuditStep({ session }: Props) {
                 <th className="py-3 px-4 w-16">Строка</th>
                 <th className="py-3 px-4">Артикул / Название</th>
                 <th className="py-3 px-4">Штрихкод</th>
+                <th className="py-3 px-4">Фабрика</th>
                 <th className="py-3 px-4">Размер / Состав</th>
                 <th className="py-3 px-4 text-right">Статус</th>
               </tr>
@@ -264,6 +266,13 @@ export default function AuditStep({ session }: Props) {
                               {err}
                             </div>
                           ))}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="text-xs text-[var(--color-fg)] dark:text-zinc-100">
+                        {d.factory_name || (
+                          <span className="italic text-red-500">— пусто —</span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="text-xs text-[var(--color-fg)] dark:text-zinc-100">
