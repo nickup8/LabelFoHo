@@ -8,8 +8,7 @@ const STEPS = [
   { id: 1, label: 'Загрузка' },
   { id: 2, label: 'Аудит' },
   { id: 3, label: 'Шаблон' },
-  { id: 4, label: 'Просмотр' },
-  { id: 5, label: 'Экспорт' },
+  { id: 4, label: 'Экспорт' },
 ] as const;
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;

@@ -51,38 +51,14 @@ class LabelController extends Controller
             : match ($session->status) {
                 'audited' => 2,
                 'template_selected' => 3,
-                'generated' => 5,
+                'generated' => 4,
                 default => 2,
             };
-
-        $previewData = null;
-        if ($step === 4) {
-            $rows = $session->validation_results ?? [];
-            $firstRow = $rows[0] ?? null;
-
-            if ($firstRow) {
-                $barcode = $firstRow['data']['barcode'] ?? null;
-                $barcodeDataUri = $barcode
-                    ? $this->barcodeService->generateEan13DataUri($barcode)
-                    : null;
-
-                $templateId = $session->template_id ?? 'foho_default';
-
-                $previewData = [
-                    'row' => $firstRow['row'],
-                    'data' => $firstRow['data'],
-                    'barcode_data_uri' => $barcodeDataUri,
-                    'brand' => $this->templateService->getBrandConfig(),
-                    'static' => $this->templateService->getStaticContent($templateId),
-                ];
-            }
-        }
 
         return Inertia::render('Labels/Index', [
             'session' => $session,
             'step' => $step,
             'templates' => $this->templateService->getAllTemplates(),
-            'previewData' => $previewData,
         ]);
     }
 
@@ -133,7 +109,7 @@ class LabelController extends Controller
 
         return redirect()->route('labels.index', [
             'session' => $session->id,
-            'step' => 5,
+            'step' => 4,
         ]);
     }
 
@@ -150,6 +126,11 @@ class LabelController extends Controller
 
             $session = LabelSession::findOrFail($sessionId);
             $rows = $session->validation_results ?? [];
+
+            if (request()->has('limit')) {
+                $first = reset($rows);
+                $rows = $first !== false ? [$first] : [];
+            }
 
             $brandConfig = $this->templateService->getBrandConfig();
             $templateId = $session->template_id ?? 'foho_default';

@@ -3,7 +3,6 @@ import { Head } from '@inertiajs/react';
 import UploadStep from '@/pages/Labels/Steps/UploadStep';
 import AuditStep from '@/components/Labels/Steps/AuditStep';
 import TemplateStep from '@/components/Labels/Steps/TemplateStep';
-import PreviewStep from '@/components/Labels/Steps/PreviewStep';
 import ExportStep from '@/components/Labels/Steps/ExportStep';
 
 interface Session {
@@ -35,39 +34,19 @@ interface Template {
     static: Record<string, unknown>;
 }
 
-interface PreviewData {
-    row: number;
-    data: Record<string, string>;
-    barcode_data_uri: string | null;
-    brand: { name: string; trademark: string; importer: string };
-    static: {
-        trademark: string;
-        importer: string;
-        certification_marks: string[];
-        manufacturer_default: string;
-    };
-}
-
 interface Props {
     session: Session | null;
     step: number;
     templates: Record<string, Template>;
-    previewData: PreviewData | null;
 }
 
 export default function LabelsWizard({
     session,
     step,
-    templates,
-    previewData,
 }: Props) {
     const [localStep, setLocalStep] = useState<number | null>(null);
 
     const effectiveStep = localStep ?? step;
-
-    const handleExport = useCallback(() => {
-        setLocalStep(5);
-    }, []);
 
     return (
         <>
@@ -79,15 +58,7 @@ export default function LabelsWizard({
                 {effectiveStep === 3 && session && (
                     <TemplateStep session={session} />
                 )}
-                {effectiveStep === 4 && session && previewData && (
-                    <PreviewStep
-                        session={session}
-                        templates={templates}
-                        previewData={previewData}
-                        onExport={handleExport}
-                    />
-                )}
-                {effectiveStep === 5 && session && (
+                {effectiveStep === 4 && session && (
                     <ExportStep sessionId={session.id} />
                 )}
             </div>

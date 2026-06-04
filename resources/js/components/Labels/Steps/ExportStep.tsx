@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { router } from '@inertiajs/react';
 import {
     Download,
     FileText,
@@ -15,8 +16,7 @@ const STEPS = [
     { id: 1, label: 'Загрузка' },
     { id: 2, label: 'Аудит' },
     { id: 3, label: 'Шаблон' },
-    { id: 4, label: 'Просмотр' },
-    { id: 5, label: 'Экспорт' },
+    { id: 4, label: 'Экспорт' },
 ] as const;
 
 interface Props {
@@ -209,8 +209,8 @@ export default function ExportStep({ sessionId }: Props) {
                 <div className="absolute top-5 right-0 left-0 h-0.5 bg-zinc-200 dark:bg-zinc-800" />
                 <div className="flex items-center justify-between">
                     {STEPS.map((s) => {
-                        const isCompleted = s.id <= 4;
-                        const isActive = s.id === 5;
+                        const isCompleted = s.id <= 3;
+                        const isActive = s.id === 4;
 
                         return (
                             <div
@@ -272,6 +272,16 @@ export default function ExportStep({ sessionId }: Props) {
             {(status === 'fetching' || status === 'compiling') && (
                 <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] dark:border-zinc-800 dark:bg-zinc-900/50">
                     <FoHoMagic status={status} />
+                    <div className="pb-6 text-center">
+                        <button
+                            type="button"
+                            onClick={() => router.get(`/labels?session=${sessionId}&step=3`)}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)] dark:text-zinc-400 transition-colors hover:text-[var(--color-fg)] dark:hover:text-zinc-200"
+                        >
+                            <ArrowLeft className="size-4" />
+                            Назад к шаблону
+                        </button>
+                    </div>
                 </div>
             )}
 
