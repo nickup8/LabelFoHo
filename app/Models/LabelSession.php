@@ -19,6 +19,7 @@ class LabelSession extends Model
         'parsed_data',
         'validation_results',
         'template_id',
+        'template_type',
         'status',
         'output_format',
         'output_path',

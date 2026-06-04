@@ -1,3 +1,5 @@
+export type LabelTemplateType = 'napkin' | 'mat' | 'tag';
+
 export interface LabelTemplate {
     id: number;
     title: string;
@@ -8,6 +10,7 @@ export interface LabelTemplate {
     default_width_px: number;
     default_height_px: number;
     is_active: boolean;
+    template_type: LabelTemplateType;
     created_at: string;
     updated_at: string;
 }
@@ -39,6 +42,7 @@ export interface LabelData {
 export interface LabelsDownloadResponse {
     session_id: string;
     template_id: string;
+    template_type: LabelTemplateType;
     labels: LabelData[];
     count: number;
 }

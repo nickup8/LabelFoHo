@@ -43,10 +43,11 @@ class LabelSessionService
         return $session->fresh();
     }
 
-    public function selectTemplate(LabelSession $session, string $templateId): LabelSession
+    public function selectTemplate(LabelSession $session, string $templateType): LabelSession
     {
         $session->update([
-            'template_id' => $templateId,
+            'template_id' => 'foho_default',
+            'template_type' => $templateType,
             'status' => 'template_selected',
         ]);
 

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PdfEngine from '@/components/Labels/PdfEngine';
-import type { LabelData, LabelsDownloadResponse } from '@/types/labels';
+import type { LabelData, LabelTemplateType, LabelsDownloadResponse } from '@/types/labels';
 
 const STEPS = [
     { id: 1, label: 'Загрузка' },
@@ -116,6 +116,7 @@ export default function ExportStep({ sessionId }: Props) {
         'fetching' | 'compiling' | 'ready' | 'error'
     >('fetching');
     const [labels, setLabels] = useState<LabelData[] | null>(null);
+    const [templateType, setTemplateType] = useState<LabelTemplateType>('napkin');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [fetchKey, setFetchKey] = useState(0);
     const objectUrlRef = useRef<string | null>(null);
@@ -166,6 +167,7 @@ export default function ExportStep({ sessionId }: Props) {
                 }
 
                 setLabels(data.labels);
+                setTemplateType(data.template_type ?? 'napkin');
                 setStatus('compiling');
             } catch (e) {
                 if (cancelled) return;
@@ -358,7 +360,7 @@ export default function ExportStep({ sessionId }: Props) {
                 </div>
             )}
 
-            {labels && <PdfEngine labels={labels} onReady={handleBlobReady} />}
+            {labels && <PdfEngine labels={labels} templateType={templateType} onReady={handleBlobReady} />}
         </div>
     );
 }

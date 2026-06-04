@@ -15,7 +15,7 @@ class SelectTemplateRequest extends FormRequest
     {
         return [
             'session_id' => 'required|string|exists:label_sessions,id',
-            'template_id' => 'required|string|in:foho_default',
+            'template_type' => 'required|string|in:napkin,mat,tag',
         ];
     }
 }

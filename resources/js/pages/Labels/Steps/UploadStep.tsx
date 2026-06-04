@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback } from 'react';
 import { useForm } from '@inertiajs/react';
-import { AlertCircle, Check, ChevronRight, FileText, UploadCloud, X } from 'lucide-react';
+import { AlertCircle, ChevronRight, FileText, UploadCloud, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import labels from '@/routes/labels';
 
@@ -10,15 +10,6 @@ const STEPS = [
   { id: 3, label: 'Шаблон' },
   { id: 4, label: 'Просмотр' },
   { id: 5, label: 'Экспорт' },
-] as const;
-
-const COLUMNS = [
-  { key: 'article', label: 'Артикул' },
-  { key: 'name', label: 'Наименование' },
-  { key: 'barcode', label: 'Штрихкод' },
-  { key: 'price', label: 'Цена' },
-  { key: 'size', label: 'Размер' },
-  { key: 'composition', label: 'Состав' },
 ] as const;
 
 const ALLOWED_EXTENSIONS = ['xlsx', 'xls', 'csv'] as const;
@@ -247,29 +238,6 @@ export default function UploadStep() {
           {errors.file}
         </div>
       )}
-
-      {/* Required columns */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900 p-6">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)] dark:text-zinc-100">
-          Обязательные колонки
-        </h2>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {COLUMNS.map((col) => (
-            <div
-              key={col.key}
-              className="flex items-center gap-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 px-3 py-2.5"
-            >
-              <Check className="size-4 shrink-0 text-[var(--color-accent)]" />
-              <span className="font-mono text-sm text-[var(--color-fg)] dark:text-zinc-100">
-                {col.key}
-              </span>
-              <span className="ml-auto text-xs text-[var(--color-muted)] dark:text-zinc-400">
-                {col.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* Bottom bar */}
       <div className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900 px-6 py-4">

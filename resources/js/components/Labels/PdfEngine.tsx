@@ -1,17 +1,28 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { usePDF } from '@react-pdf/renderer';
-import FoHoLabelDocument from '@/components/Labels/FoHoLabelDocument';
-import type { LabelData } from '@/types/labels';
+import NapkinLabelDocument from '@/components/Labels/NapkinLabelDocument';
+import MatLabelDocument from '@/components/Labels/MatLabelDocument';
+import TagLabelDocument from '@/components/Labels/TagLabelDocument';
+import type { LabelData, LabelTemplateType } from '@/types/labels';
 
 interface PdfEngineProps {
     labels: LabelData[];
+    templateType: LabelTemplateType;
     onReady: (blob: Blob) => void;
 }
 
-export default function PdfEngine({ labels, onReady }: PdfEngineProps) {
+const documentComponents = {
+    napkin: NapkinLabelDocument,
+    mat: MatLabelDocument,
+    tag: TagLabelDocument,
+} as const;
+
+export default function PdfEngine({ labels, templateType, onReady }: PdfEngineProps) {
+    const DocumentComponent = documentComponents[templateType];
+
     const memoizedDocument = useMemo(
-        () => <FoHoLabelDocument labels={labels} />,
-        [labels],
+        () => <DocumentComponent labels={labels} />,
+        [labels, DocumentComponent],
     );
     const [pdfInstance] = usePDF({ document: memoizedDocument });
     const done = useRef(false);

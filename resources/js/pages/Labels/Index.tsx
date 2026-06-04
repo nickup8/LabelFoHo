@@ -18,6 +18,7 @@ interface Session {
         is_valid: boolean;
     }>;
     template_id: string | null;
+    template_type: string | null;
     output_format: string | null;
     output_path: string | null;
 }
@@ -76,7 +77,7 @@ export default function LabelsWizard({
                 {effectiveStep === 1 && <UploadStep />}
                 {effectiveStep === 2 && session && <AuditStep session={session} />}
                 {effectiveStep === 3 && session && (
-                    <TemplateStep session={session} templates={templates} />
+                    <TemplateStep session={session} />
                 )}
                 {effectiveStep === 4 && session && previewData && (
                     <PreviewStep

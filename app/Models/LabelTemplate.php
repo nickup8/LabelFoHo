@@ -18,6 +18,7 @@ class LabelTemplate extends Model
         'default_height_px',
         'is_active',
         'canvas_elements',
+        'template_type',
     ];
 
     protected function casts(): array

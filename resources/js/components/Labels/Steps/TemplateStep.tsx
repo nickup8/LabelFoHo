@@ -1,7 +1,8 @@
 import { router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Check, Columns, Grid, Layout } from 'lucide-react';
+import { ArrowLeft, Tag, Square, Ticket } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import labels from '@/routes/labels';
+import type { LabelTemplateType } from '@/types/labels';
 
 const STEPS = [
   { id: 1, label: 'Загрузка' },
@@ -11,86 +12,34 @@ const STEPS = [
   { id: 5, label: 'Экспорт' },
 ] as const;
 
-interface Template {
-  name: string;
-  description: string;
-  orientation: string;
-  page_width_mm: number;
-  page_height_mm: number;
-  font_family: string;
-  columns_mapping: Record<string, string>;
-  sections: Record<string, { y_mm: number; height_mm: number }>;
-  fields: Record<string, Record<string, unknown>>;
-  static: {
-    trademark: string;
-    importer: string;
-    certification_marks: string[];
-    manufacturer_default: string;
-  };
-}
+const TEMPLATE_TYPE_OPTIONS: { value: LabelTemplateType; label: string; description: string; icon: typeof Tag }[] = [
+  { value: 'napkin', label: 'Наклейка (салфетки)', description: 'Стандартная наклейка для салфеток', icon: Tag },
+  { value: 'mat', label: 'Наклейки коврики', description: 'Наклейка для ковриков', icon: Square },
+  { value: 'tag', label: 'Бирки', description: 'Подвесная бирка', icon: Ticket },
+];
 
 interface Session {
   id: string;
-  template_id: string | null;
 }
 
 interface Props {
   session: Session;
-  templates: Record<string, Template>;
 }
 
 interface TemplateForm {
   session_id: string;
-  template_id: string;
+  template_type: LabelTemplateType | null;
 }
 
-function TemplatePreview({ template }: { template: Template }) {
-  const isVertical = template.orientation === 'vertical';
-  const s = template.static;
-
-  if (isVertical) {
-    return (
-      <div className="w-24 h-16 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded p-2 flex flex-col justify-between shadow-sm">
-        <div className="w-8 h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded" />
-        <div className="space-y-1">
-          <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-700 rounded" />
-          <div className="w-2/3 h-1 bg-zinc-200 dark:bg-zinc-700 rounded" />
-        </div>
-        <div className="w-full h-3 bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-500 flex items-center justify-center text-[6px] font-mono text-zinc-400 dark:text-zinc-500">
-          ||||||||||
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-36 h-10 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded p-2 flex items-center justify-between shadow-sm">
-      <div className="space-y-1 w-1/2">
-        <div className="w-10 h-1.5 bg-zinc-300 dark:bg-zinc-600 rounded" />
-        <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-700 rounded" />
-        <div className="w-3/4 h-1 bg-zinc-200 dark:bg-zinc-700 rounded" />
-      </div>
-      <div className="w-10 h-full bg-zinc-100 dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-500 flex items-center justify-center text-[6px] font-mono tracking-tighter text-zinc-400 dark:text-zinc-500">
-        ||||||
-      </div>
-    </div>
-  );
-}
-
-export default function TemplateStep({ session, templates }: Props) {
-  const templateIds = Object.keys(templates);
-
+export default function TemplateStep({ session }: Props) {
   const { data, setData, post, processing } = useForm<TemplateForm>({
     session_id: session.id,
-    template_id: session.template_id ?? '',
+    template_type: null,
   });
 
-  const handleSelect = (id: string) => setData('template_id', id);
   const handleBack = () =>
     router.get(labels.index({ query: { session: session.id, step: 2 } }).url);
   const handleNext = () => post(labels.selectTemplate().url, { preserveScroll: true });
-
-  const hasSelection = !!data.template_id;
 
   return (
     <div className="space-y-10">
@@ -140,88 +89,53 @@ export default function TemplateStep({ session, templates }: Props) {
           Выбор шаблона
         </h1>
         <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
-          Выберите базовый формат и геометрию этикетки для генерации
+          Выберите тип этикетки для генерации
         </p>
       </div>
 
-      {/* Template cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {templateIds.map((id) => {
-          const tpl = templates[id];
-          const isSelected = data.template_id === id;
-          const isVertical = tpl.orientation === 'vertical';
-
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => handleSelect(id)}
-              className={cn(
-                'relative flex flex-col rounded-xl border p-5 text-left transition-all cursor-pointer',
-                isSelected
-                  ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/10'
-                  : 'border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700',
-              )}
-            >
-              {isSelected && (
-                <span className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full bg-[var(--color-accent)] text-white shadow-sm">
-                  <Check className="size-3.5" />
-                </span>
-              )}
-
-              {/* Preview */}
-              <div className="w-full h-40 border-2 border-dashed border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg flex items-center justify-center p-4 mb-4">
-                <TemplatePreview template={tpl} />
-              </div>
-
-              {/* Info */}
-              <h3 className="text-base font-semibold text-[var(--color-fg)] dark:text-zinc-100">
-                {tpl.name}
-              </h3>
-              <p className="mt-1 text-xs text-[var(--color-muted)] dark:text-zinc-400 leading-relaxed">
-                {tpl.description}
-              </p>
-
-              {/* Column list */}
-              {Object.keys(tpl.columns_mapping).length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {Object.entries(tpl.columns_mapping).slice(0, 4).map(([col, label]) => (
-                    <span
-                      key={col}
-                      className="inline-flex items-center gap-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-muted)] dark:text-zinc-400"
-                    >
-                      <Columns className="size-2.5" />
-                      {label}
-                    </span>
-                  ))}
-                  {Object.keys(tpl.columns_mapping).length > 4 && (
-                    <span className="inline-flex items-center rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-muted)] dark:text-zinc-400">
-                      +{Object.keys(tpl.columns_mapping).length - 4}
-                    </span>
+      {/* Template type selector */}
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900 p-5">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)] dark:text-zinc-100">
+          Тип этикетки
+        </h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {TEMPLATE_TYPE_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const isSelected = data.template_type === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setData('template_type', opt.value)}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg border p-4 text-left transition-all cursor-pointer',
+                  isSelected
+                    ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/10 bg-[var(--color-accent)]/5'
+                    : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600',
+                )}
+              >
+                <div
+                  className={cn(
+                    'flex size-10 shrink-0 items-center justify-center rounded-lg',
+                    isSelected
+                      ? 'bg-[var(--color-accent)] text-white'
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-[var(--color-muted)]',
                   )}
+                >
+                  <Icon className="size-5" />
                 </div>
-              )}
-
-              {/* Orientation & size tags */}
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                <span className="inline-flex items-center gap-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-muted)] dark:text-zinc-400">
-                  <Layout className="size-2.5" />
-                  {isVertical ? 'Вертикальная' : 'Горизонтальная'}
-                </span>
-                <span className="inline-flex items-center gap-1 rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-muted)] dark:text-zinc-400">
-                  <Grid className="size-2.5" />
-                  {tpl.page_width_mm}×{tpl.page_height_mm} мм
-                </span>
-              </div>
-
-              {/* Footer */}
-              <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between text-xs text-[var(--color-muted)] dark:text-zinc-500">
-                <span>Пропорции: {isVertical ? '2:3' : '4:1'}</span>
-                {tpl.static.importer && <span className="truncate ml-2">{tpl.static.importer}</span>}
-              </div>
-            </button>
-          );
-        })}
+                <div>
+                  <p className="text-sm font-medium text-[var(--color-fg)] dark:text-zinc-100">
+                    {opt.label}
+                  </p>
+                  <p className="text-xs text-[var(--color-muted)] dark:text-zinc-400">
+                    {opt.description}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Navigation */}
@@ -238,10 +152,10 @@ export default function TemplateStep({ session, templates }: Props) {
         <button
           type="button"
           onClick={handleNext}
-          disabled={!hasSelection || processing}
+          disabled={!data.template_type || processing}
           className={cn(
             'inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium shadow-sm transition-all',
-            hasSelection && !processing
+            data.template_type && !processing
               ? 'bg-[var(--color-accent)] text-white hover:opacity-90'
               : 'bg-zinc-200 dark:bg-zinc-800 text-[var(--color-muted)] dark:text-zinc-500 cursor-not-allowed opacity-50',
           )}

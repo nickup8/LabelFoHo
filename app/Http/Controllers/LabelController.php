@@ -116,7 +116,7 @@ class LabelController extends Controller
 
         $session = $this->sessionService->selectTemplate(
             $session,
-            $request->input('template_id')
+            $request->input('template_type'),
         );
 
         return redirect()->route('labels.index', [
@@ -190,6 +190,7 @@ class LabelController extends Controller
             return response()->json([
                 'session_id' => $session->id,
                 'template_id' => $templateId,
+                'template_type' => $session->template_type ?? 'napkin',
                 'labels' => $labels,
                 'count' => count($labels),
             ]);
