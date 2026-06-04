@@ -11,6 +11,7 @@ export interface LabelTemplate {
     default_height_px: number;
     is_active: boolean;
     template_type: LabelTemplateType;
+    canvas_elements?: unknown;
     created_at: string;
     updated_at: string;
 }

@@ -3,6 +3,7 @@ import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
 import { NavUser } from '@/components/nav-user';
 import { useState } from 'react';
+import type { NavItem } from '@/types';
 import {
     Sidebar,
     SidebarContent,

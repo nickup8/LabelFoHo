@@ -15,6 +15,8 @@ class LabelSessionService
 
     public function createFromUpload(UploadedFile $file): LabelSession
     {
+        LabelSession::query()->delete();
+
         $path = $file->store('uploads');
 
         $session = LabelSession::create([

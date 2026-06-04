@@ -168,7 +168,7 @@ const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
             <View style={styles.header}>
                 <Text style={styles.title}>{label.title}</Text>
                 <View style={styles.logo}>
-                    <RecyclingSign composition={label.composition} />
+                    <RecyclingSign recycleCode={label.recycle_code} recycleLabel={label.recycle_label} />
                 </View>
             </View>
 

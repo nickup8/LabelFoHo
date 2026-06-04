@@ -9,7 +9,6 @@ import {
     StyleSheet,
 } from '@react-pdf/renderer';
 import type { LabelData } from '@/types/labels';
-import RecyclingSign from '@/components/Labels/RecyclingSign';
 
 function capitalizeFirstLetter(str: string): string {
     if (!str) return str;

@@ -54,7 +54,7 @@ export default function LabelsWizard({
 
             <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
                 {effectiveStep === 1 && <UploadStep />}
-                {effectiveStep === 2 && session && <AuditStep session={session} />}
+                {effectiveStep === 2 && session && <AuditStep session={session as any} />}
                 {effectiveStep === 3 && session && (
                     <TemplateStep session={session} />
                 )}

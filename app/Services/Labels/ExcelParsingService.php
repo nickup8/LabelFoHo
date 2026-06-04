@@ -10,14 +10,17 @@ class ExcelParsingService
 {
     private const MATERIAL_ALIASES = [
         'пвх' => 'ПВХ',
+        'pvc' => 'ПВХ',
         'поливинилхлорид' => 'ПВХ',
         'поливинилхлоридный' => 'ПВХ',
         'пэт' => 'ПЭТ',
+        'pet' => 'ПЭТ',
         'полиэстер' => 'ПЭТ',
         'полиэстерный' => 'ПЭТ',
         'полиэфир' => 'ПЭТ',
         'пэтф' => 'ПЭТ',
         'пп' => 'ПП',
+        'pp' => 'ПП',
         'полипропилен' => 'ПП',
         'полипропиленовый' => 'ПП',
         'пэвд' => 'ПЭНП',
@@ -27,8 +30,17 @@ class ExcelParsingService
         'пэвп' => 'ПЭВП',
         'полиэтилен низкого давления' => 'ПЭВП',
         'па' => 'ПА',
+        'pa' => 'ПА',
         'полиамид' => 'ПА',
         'полиамидный' => 'ПА',
+        'джут' => 'Джут',
+        'джутовый' => 'Джут',
+        'jute' => 'Джут',
+        'pu кожа' => 'PU кожа',
+        'пу кожа' => 'PU кожа',
+        'pu' => 'PU кожа',
+        'полиуретан' => 'PU кожа',
+        'экокожа' => 'PU кожа',
     ];
 
     private const RECYCLING_CODES = [
@@ -38,6 +50,12 @@ class ExcelParsingService
         'ПЭНП' => ['code' => '04', 'label' => 'PE-LD', 'full' => '04 PE-LD'],
         'ПЭВП' => ['code' => '02', 'label' => 'PE-HD', 'full' => '02 PE-HD'],
         'ПА'   => ['code' => '07', 'label' => 'PA',   'full' => '07 PA'],
+        'Джут' => ['code' => '60', 'label' => 'TEX', 'full' => '60 TEX'],
+        'PU кожа' => ['code' => '07', 'label' => 'O', 'full' => '07 O'],
+    ];
+
+    private const MATERIAL_DISPLAY_NAMES = [
+        'ПП' => 'Полипропилен',
     ];
 
     public function parse(string $filePath): array
@@ -124,7 +142,8 @@ class ExcelParsingService
 
         $normalizedParts = [];
         foreach ($materials as $mat) {
-            $normalizedParts[] = $mat['percentage'] . '% ' . $mat['name'];
+            $displayName = self::MATERIAL_DISPLAY_NAMES[$mat['name']] ?? $mat['name'];
+            $normalizedParts[] = $mat['percentage'] . '% ' . $displayName;
         }
         $normalized = implode(', ', $normalizedParts);
 
@@ -187,23 +206,11 @@ class ExcelParsingService
                 continue;
             }
 
-            if (isset($seen[$normalizedName])) {
-                $materials[$seen[$normalizedName]]['percentage'] += $percentage;
-            } else {
+            if (!isset($seen[$normalizedName])) {
                 $seen[$normalizedName] = count($materials);
                 $materials[] = [
                     'name' => $normalizedName,
                     'percentage' => $percentage,
-                ];
-            }
-        }
-
-        if (empty($materials)) {
-            $singleName = $this->normalizeMaterialName($raw);
-            if ($singleName !== null) {
-                $materials[] = [
-                    'name' => $singleName,
-                    'percentage' => 100,
                 ];
             }
         }
