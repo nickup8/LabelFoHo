@@ -92,12 +92,12 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     labelText: {
-        lineHeight: 1.4,
+        lineHeight: 1.2,
     },
     boldText: {
         fontWeight: 700,
     },
-    regularText: {},
+    regularText: { fontWeight: 400 },
     regulation: {
         marginTop: 12,
     },
@@ -158,6 +158,12 @@ const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
         ? `${label.size} (диаметр одного изделия)`
         : label.size;
 
+    // Добавьте эту строчку перед return:
+    const formattedAddress = (label.importer_address || '')
+        .replace(/пос\.\s+/g, 'пос.\u00A0') // Связывает "пос." со следующим словом
+        .replace(/ул\.\s+/g, 'ул.\u00A0') // При желании свяжет и "ул." с названием улицы
+        .replace(/г\.\s+/g, 'г.\u00A0'); // При желании свяжет "г." с городом
+
     return (
         <View style={styles.page} wrap={false}>
             <View style={styles.header}>
@@ -203,10 +209,10 @@ const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
                     <Text style={styles.value}>{label.importer_name}</Text>
                 </View>
 
-                <View style={styles.row}>
-                    <Text style={styles.label}>Адрес: </Text>
-                    <Text style={styles.value}>{label.importer_address}</Text>
-                </View>
+                <Text style={styles.labelText}>
+                    <Text style={styles.boldText}>Адрес: </Text>
+                    <Text style={styles.regularText}>{formattedAddress}</Text>
+                </Text>
 
                 <View style={styles.row}>
                     <Text style={styles.label}>Телефон: </Text>
