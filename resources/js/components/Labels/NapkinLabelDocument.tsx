@@ -154,9 +154,12 @@ const styles = StyleSheet.create({
 });
 
 const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
-    const sizeText = label.is_circular
+    const isCircular = label.is_circular ||
+        (!label.size.includes('х') && !label.size.includes('x'));
+
+    const sizeText = isCircular
         ? `${label.size} (диаметр одного изделия)`
-        : label.size;
+        : `${label.size} (размер одного изделия)`;
 
     const formattedAddress = (label.importer_address || '')
         .replace(/пос\.\s+/g, 'пос.\u00A0')
@@ -168,7 +171,10 @@ const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
             <View style={styles.header}>
                 <Text style={styles.title}>{label.title}</Text>
                 <View style={styles.logo}>
-                    <RecyclingSign recycleCode={label.recycle_code} recycleLabel={label.recycle_label} />
+                    <RecyclingSign
+                        recycleCode={label.recycle_code}
+                        recycleLabel={label.recycle_label}
+                    />
                 </View>
             </View>
 
