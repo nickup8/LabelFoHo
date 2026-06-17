@@ -142,7 +142,7 @@
                 <div class="margin-b"><span class="bold">Артикул:</span> {{ $article }}</div>
 
                 <div>
-                    <span class="bold">Размер:</span> {{ $size }}.
+                    <span class="bold">Размер:</span> {{ str_replace('.', ',', $size) }}.
                     @if($isCircular)
                         (диаметр одного изделия)
                     @endif

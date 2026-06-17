@@ -9,6 +9,7 @@ import {
     StyleSheet,
 } from '@react-pdf/renderer';
 import type { LabelData } from '@/types/labels';
+import { formatSize } from '@/lib/utils';
 import RecyclingSign from '@/components/Labels/RecyclingSign';
 
 function capitalizeFirstLetter(str: string): string {
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     },
     value: {},
     tolerance: {
-        marginTop: -2,
+        marginTop: 0,
         fontSize: 16,
     },
     labelText: {
@@ -105,7 +106,7 @@ const styles = StyleSheet.create({
         marginTop: 0,
     },
     regulationLineTight: {
-        marginTop: -2,
+        marginTop: 0,
     },
     barcodeSection: {
         marginTop: 20,
@@ -154,12 +155,14 @@ const styles = StyleSheet.create({
 });
 
 const SingleLabel = memo(function SingleLabel({ label }: { label: LabelData }) {
-    const isCircular = label.is_circular ||
+    const isCircular =
+        label.is_circular ||
         (!label.size.includes('х') && !label.size.includes('x'));
 
+    const localizedSize = formatSize(label.size);
     const sizeText = isCircular
-        ? `${label.size} (диаметр одного изделия)`
-        : `${label.size} (размер одного изделия)`;
+        ? `${localizedSize} (диаметр одного изделия)`
+        : `${localizedSize} (размер одного изделия)`;
 
     const formattedAddress = (label.importer_address || '')
         .replace(/пос\.\s+/g, 'пос.\u00A0')

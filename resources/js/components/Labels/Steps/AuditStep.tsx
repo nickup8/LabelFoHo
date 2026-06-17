@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { router } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatSize } from '@/lib/utils';
 import labels from '@/routes/labels';
 
 const STEPS = [
@@ -275,7 +275,7 @@ export default function AuditStep({ session }: Props) {
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="text-xs text-[var(--color-fg)] dark:text-zinc-100">
-                        {d.size || (
+                        {d.size ? formatSize(d.size) : (
                           <span className="italic text-red-500">— пусто —</span>
                         )}
                       </div>

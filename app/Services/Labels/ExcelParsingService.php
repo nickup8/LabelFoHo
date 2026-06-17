@@ -166,17 +166,17 @@ class ExcelParsingService
             return ['normalized' => '', 'is_circular' => false];
         }
 
+        // 1. Удаляем суффикс "см" если есть
+        $raw = preg_replace('/\s*см\s*$/ui', '', $raw);
+
+        // 2. Заменяем русскую запятую на точку для нормализации float
+        $raw = str_replace(',', '.', $raw);
+
+        // 3. Удаляем все пробелы внутри строки для упрощения парсинга
         $cleaned = preg_replace('/\s+/', '', $raw);
 
-        if (preg_match('/^\d+(\.\d+)?$/u', $cleaned)) {
-            return [
-                'normalized' => $cleaned . ' см',
-                'is_circular' => true,
-            ];
-        }
-
-        $rectPattern = '/^(\d+(?:\.\d+)?)\s*[xх×]\s*(\d+(?:\.\d+)?)(?:\s*[+\\-]\s*(\d+(?:\.\d+)?))?\s*(?:см)?$/ui';
-        if (preg_match($rectPattern, $raw, $m)) {
+        // 4. Прямоугольный формат: Ш x В
+        if (preg_match('/^(\d+(?:\.\d+)?)[xх×](\d+(?:\.\d+)?)$/u', $cleaned, $m)) {
             $normalized = $m[1] . 'x' . $m[2] . ' см';
             return [
                 'normalized' => $normalized,
@@ -184,6 +184,15 @@ class ExcelParsingService
             ];
         }
 
+        // 5. Круглый формат: одно число (диаметр)
+        if (preg_match('/^\d+(?:\.\d+)?$/u', $cleaned)) {
+            return [
+                'normalized' => $cleaned . ' см',
+                'is_circular' => true,
+            ];
+        }
+
+        // 6. Fallback — возвращаем как есть
         return [
             'normalized' => $raw,
             'is_circular' => false,

@@ -36,7 +36,7 @@ export default function Label() {
                     </div>
                     <div>
                         <span className="font-bold">Размер: </span>
-                        <span>30х45 см. (размер одного изделия)</span>
+                        <span>30х45 см (размер одного изделия)</span>
                         <div className="-mt-1">
                             Допускается отклонение в размерах &plusmn; 1 см.
                         </div>
