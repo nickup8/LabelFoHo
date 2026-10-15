@@ -4,7 +4,17 @@ return [
     'brand' => [
         'name' => 'FoHo',
         'trademark' => 'FoHo',
-        'importer' => 'ИП Климин П.А.',
+    ],
+
+    'categories' => [
+        'napkins' => [
+            'label' => 'Салфетки',
+            'templates' => ['napkin'],
+        ],
+        'mats' => [
+            'label' => 'Коврики',
+            'templates' => ['mat', 'tag'],
+        ],
     ],
 
     'templates' => [
@@ -36,7 +46,7 @@ return [
                     'checksum' => true,
                 ],
                 'size' => [
-                    'pattern' => '/^\d+(?:[.,]\d+)?(?:\s*[xх×]\s*\d+(?:[.,]\d+)?)?\s*см$/ui',
+                    'pattern' => '/^\d+(?:[.,]\d+)?(?:\s*[xXхХ×]\s*\d+(?:[.,]\d+)?)? см(?: и \d+(?:[.,]\d+)?(?:\s*[xXхХ×]\s*\d+(?:[.,]\d+)?)? см)?$/u',
                 ],
                 'composition' => [
                     'extract' => ['ПВХ', 'ПЭТ', 'полиэстер', 'хлопок'],
@@ -95,9 +105,7 @@ return [
 
             'static' => [
                 'trademark' => 'FoHo',
-                'importer' => 'ИП Климин П.А.',
                 'certification_marks' => ['EAC', 'ТР ТС 017/2011'],
-                'manufacturer_default' => '',
             ],
         ],
     ],

@@ -1,26 +1,34 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
 import { router } from '@inertiajs/react';
 import {
+    ArrowLeft,
+    CheckCircle2,
     Download,
     FileText,
-    CheckCircle2,
     AlertCircle,
-    ArrowLeft,
     Sparkles,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import PdfEngine from '@/components/Labels/PdfEngine';
-import type { LabelData, LabelTemplateType, LabelsDownloadResponse } from '@/types/labels';
-
-const STEPS = [
-    { id: 1, label: 'Загрузка' },
-    { id: 2, label: 'Аудит' },
-    { id: 3, label: 'Шаблон' },
-    { id: 4, label: 'Экспорт' },
-] as const;
+import WizardStepper, { wizardSteps } from '@/components/Labels/WizardStepper';
+import { cn } from '@/lib/utils';
+import type {
+    LabelData,
+    LabelTemplateType,
+    LabelsDownloadResponse,
+} from '@/types/labels';
 
 interface Props {
     sessionId: string;
+    templateCount: number | null;
+}
+
+type Status = 'fetching' | 'compiling' | 'ready' | 'error';
+
+interface ImportErrorBody {
+    error?: string;
+    error_code?: string;
+    importer_card_url?: string;
+    details?: string[];
 }
 
 const FETCHING_MESSAGES = [
@@ -38,7 +46,7 @@ const COMPILING_MESSAGES = [
 function FoHoMagic({
     status,
 }: {
-    status: 'fetching' | 'compiling' | 'ready' | 'error';
+    status: 'fetching' | 'compiling';
 }) {
     const [msgIndex, setMsgIndex] = useState(0);
     const messages =
@@ -49,6 +57,7 @@ function FoHoMagic({
         const id = setInterval(() => {
             setMsgIndex((i) => (i + 1) % messages.length);
         }, 1300);
+
         return () => clearInterval(id);
     }, [status]);
 
@@ -111,15 +120,19 @@ function FoHoMagic({
     );
 }
 
-export default function ExportStep({ sessionId }: Props) {
-    const [status, setStatus] = useState<
-        'fetching' | 'compiling' | 'ready' | 'error'
-    >('fetching');
+export default function ExportStep({ sessionId, templateCount }: Props) {
+    const [status, setStatus] = useState<Status>('fetching');
     const [labels, setLabels] = useState<LabelData[] | null>(null);
     const [templateType, setTemplateType] = useState<LabelTemplateType>('napkin');
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [errorCardUrl, setErrorCardUrl] = useState<string | null>(null);
+    const [errorDetails, setErrorDetails] = useState<string[]>([]);
     const [fetchKey, setFetchKey] = useState(0);
     const objectUrlRef = useRef<string | null>(null);
+
+    const steps = wizardSteps(templateCount);
+    const backStep = templateCount === 1 ? 2 : 3;
+    const backLabel = templateCount === 1 ? 'Назад к аудиту' : 'Назад к шаблону';
 
     const fileName = `foho_labels_${sessionId}.pdf`;
 
@@ -133,10 +146,13 @@ export default function ExportStep({ sessionId }: Props) {
 
     useEffect(() => {
         let cancelled = false;
+        const controller = new AbortController();
 
         async function run() {
             setStatus('fetching');
             setErrorMessage(null);
+            setErrorCardUrl(null);
+            setErrorDetails([]);
             setLabels(null);
 
             if (objectUrlRef.current) {
@@ -147,12 +163,26 @@ export default function ExportStep({ sessionId }: Props) {
             try {
                 const res = await fetch(
                     `/labels/download?session_id=${sessionId}`,
+                    { signal: controller.signal },
                 );
 
-                if (cancelled) return;
+                if (cancelled) {
+                    return;
+                }
 
                 if (!res.ok) {
-                    const body = await res.json().catch(() => null);
+                    const body: ImportErrorBody | null = await res
+                        .json()
+                        .catch(() => null);
+
+                    if (body?.importer_card_url) {
+                        setErrorCardUrl(body.importer_card_url);
+                    }
+
+                    if (Array.isArray(body?.details)) {
+                        setErrorDetails(body.details);
+                    }
+
                     throw new Error(
                         body?.error ?? `Ошибка сервера: ${res.status}`,
                     );
@@ -160,17 +190,28 @@ export default function ExportStep({ sessionId }: Props) {
 
                 const data: LabelsDownloadResponse = await res.json();
 
-                if (cancelled) return;
+                if (cancelled) {
+                    return;
+                }
 
                 if (!data.labels || data.labels.length === 0) {
                     throw new Error('Нет этикеток для экспорта.');
+                }
+
+                if (!data.importer) {
+                    throw new Error(
+                        'Реквизиты импортёра не получены. Заполните карточку импортёра, чтобы сформировать этикетки.',
+                    );
                 }
 
                 setLabels(data.labels);
                 setTemplateType(data.template_type ?? 'napkin');
                 setStatus('compiling');
             } catch (e) {
-                if (cancelled) return;
+                if (cancelled) {
+                    return;
+                }
+
                 const message =
                     e instanceof Error ? e.message : 'Неизвестная ошибка';
                 setErrorMessage(message);
@@ -182,15 +223,36 @@ export default function ExportStep({ sessionId }: Props) {
 
         return () => {
             cancelled = true;
+            controller.abort();
         };
     }, [sessionId, fetchKey]);
 
     const handleBlobReady = useCallback((b: Blob) => {
+        if (objectUrlRef.current) {
+            URL.revokeObjectURL(objectUrlRef.current);
+        }
+
         objectUrlRef.current = URL.createObjectURL(b);
         setStatus('ready');
     }, []);
 
+    const handleGenerateError = useCallback((message: string) => {
+        setErrorMessage(message);
+        setErrorCardUrl(null);
+        setErrorDetails([]);
+        setStatus('error');
+    }, []);
+
     const count = labels?.length ?? 0;
+
+    const statusSubtitle =
+        status === 'fetching'
+            ? 'Загрузка данных...'
+            : status === 'compiling'
+              ? 'Компиляция PDF...'
+              : status === 'ready'
+                ? `Файл готов к скачиванию (${count} ${count === 1 ? 'этикетка' : count >= 2 && count <= 4 ? 'этикетки' : 'этикеток'})`
+                : 'Произошла ошибка';
 
     return (
         <div className="mx-auto max-w-2xl space-y-10 py-12">
@@ -205,51 +267,7 @@ export default function ExportStep({ sessionId }: Props) {
                 }
             `}</style>
 
-            <nav aria-label="Прогресс" className="relative">
-                <div className="absolute top-5 right-0 left-0 h-0.5 bg-zinc-200 dark:bg-zinc-800" />
-                <div className="flex items-center justify-between">
-                    {STEPS.map((s) => {
-                        const isCompleted = s.id <= 3;
-                        const isActive = s.id === 4;
-
-                        return (
-                            <div
-                                key={s.id}
-                                className="relative flex flex-col items-center bg-[var(--color-bg)] px-4 dark:bg-zinc-900"
-                            >
-                                <div
-                                    className={cn(
-                                        'flex size-10 items-center justify-center rounded-full text-sm font-semibold transition-colors',
-                                        isCompleted &&
-                                            'bg-green-500 text-white',
-                                        isActive &&
-                                            'bg-[var(--color-accent)] text-white',
-                                        !isCompleted &&
-                                            !isActive &&
-                                            'bg-zinc-100 text-[var(--color-muted)] dark:bg-zinc-800 dark:text-zinc-400',
-                                    )}
-                                >
-                                    {isCompleted ? '✓' : s.id}
-                                </div>
-                                <span
-                                    className={cn(
-                                        'mt-2 text-xs font-medium',
-                                        isCompleted &&
-                                            'text-green-600 dark:text-green-400',
-                                        isActive &&
-                                            'text-[var(--color-fg)] dark:text-zinc-100',
-                                        !isCompleted &&
-                                            !isActive &&
-                                            'text-[var(--color-muted)] dark:text-zinc-400',
-                                    )}
-                                >
-                                    {s.label}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-            </nav>
+            <WizardStepper steps={steps} currentId={4} />
 
             <div className="flex items-center gap-3">
                 <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--color-accent)]/10">
@@ -260,11 +278,7 @@ export default function ExportStep({ sessionId }: Props) {
                         {status === 'ready' ? 'Этикетки готовы' : 'Экспорт PDF'}
                     </h1>
                     <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
-                        {status === 'fetching' && 'Загрузка данных...'}
-                        {status === 'compiling' && 'Компиляция PDF...'}
-                        {status === 'ready' &&
-                            `Файл готов к скачиванию (${count} ${count === 1 ? 'этикетка' : count >= 2 && count <= 4 ? 'этикетки' : 'этикеток'})`}
-                        {status === 'error' && 'Произошла ошибка'}
+                        {statusSubtitle}
                     </p>
                 </div>
             </div>
@@ -275,13 +289,26 @@ export default function ExportStep({ sessionId }: Props) {
                     <div className="pb-6 text-center">
                         <button
                             type="button"
-                            onClick={() => router.get(`/labels?session=${sessionId}&step=3`)}
+                            onClick={() => router.get(`/labels?session=${sessionId}&step=${backStep}`)}
                             className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)] dark:text-zinc-400 transition-colors hover:text-[var(--color-fg)] dark:hover:text-zinc-200"
                         >
                             <ArrowLeft className="size-4" />
-                            Назад к шаблону
+                            {backLabel}
                         </button>
                     </div>
+                </div>
+            )}
+
+            {status === 'ready' && (
+                <div className="pb-2 text-center">
+                    <button
+                        type="button"
+                        onClick={() => router.get(`/labels?session=${sessionId}&step=${backStep}`)}
+                        className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)] dark:text-zinc-400 transition-colors hover:text-[var(--color-fg)] dark:hover:text-zinc-200"
+                    >
+                        <ArrowLeft className="size-4" />
+                        {backLabel}
+                    </button>
                 </div>
             )}
 
@@ -352,25 +379,64 @@ export default function ExportStep({ sessionId }: Props) {
                         <AlertCircle className="size-12 text-red-500" />
                         <div>
                             <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                                Ошибка загрузки
+                                Не удалось сформировать PDF
                             </h2>
-                            <p className="mt-1 max-w-sm text-sm text-[var(--color-muted)] dark:text-zinc-400">
+                            <p className="mt-1 max-w-md text-sm text-[var(--color-muted)] dark:text-zinc-400">
                                 {errorMessage}
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setFetchKey((k) => k + 1)}
-                            className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90"
-                        >
-                            <Download className="size-4" />
-                            Повторить
-                        </button>
+                        {errorDetails.length > 0 && !errorCardUrl && (
+                            <ul className="max-w-md space-y-1 text-left text-xs text-[var(--color-muted)] dark:text-zinc-400">
+                                {errorDetails.map((detail) => (
+                                    <li key={detail}>• {detail}</li>
+                                ))}
+                            </ul>
+                        )}
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                            {errorCardUrl && (
+                                <a
+                                    href={errorCardUrl}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90"
+                                >
+                                    <FileText className="size-4" />
+                                    Заполнить карточку импортёра
+                                </a>
+                            )}
+                            {!errorCardUrl && errorDetails.length > 0 && (
+                                <a
+                                    href={`/labels?session=${sessionId}&step=2`}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90"
+                                >
+                                    <FileText className="size-4" />
+                                    Перейти к аудиту
+                                </a>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setFetchKey((k) => k + 1)}
+                                className={cn(
+                                    'inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-all hover:opacity-90',
+                                    errorCardUrl || errorDetails.length > 0
+                                        ? 'border border-zinc-300 bg-background text-[var(--color-fg)] dark:border-zinc-600 dark:text-zinc-300'
+                                        : 'bg-[var(--color-accent)] text-white',
+                                )}
+                            >
+                                <Download className="size-4" />
+                                Повторить
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {labels && <PdfEngine labels={labels} templateType={templateType} onReady={handleBlobReady} />}
+            {labels && (status === 'compiling' || status === 'ready') && (
+                <PdfEngine
+                    labels={labels}
+                    templateType={templateType}
+                    onReady={handleBlobReady}
+                    onError={handleGenerateError}
+                />
+            )}
         </div>
     );
 }

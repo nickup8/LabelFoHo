@@ -1,0 +1,135 @@
+/* Keep each task and its actions together within the viewport. */
+.header{height:clamp(60px,10dvh,100px)}
+.hero,body[data-page="importer"] .hero,.hero:has(+.wide){padding:clamp(12px,3.5dvh,49px) 0 clamp(20px,4dvh,53px)}
+.hero h1{font-size:clamp(54px,min(7.4vw,11dvh),104px);margin-bottom:clamp(12px,2.4dvh,24px)}
+body[data-page]:not([data-page="upload"]) .hero h1{font-size:clamp(48px,min(6.7vw,10dvh),92px)}
+.workspace{width:100%;margin-bottom:18px;transform-origin:top center}
+.steps{margin-bottom:clamp(16px,3dvh,35px)}
+.stage{min-height:0}
+.footer{min-height:60px;padding-top:16px}
+.export-summary{margin-bottom:0}
+body[data-page="audit"] .table-scroll{max-height:clamp(200px,45dvh,560px)}
+body[data-page="audit"] thead{position:sticky;top:0;z-index:1;background:#241d30}
+html[data-theme="mono"] body[data-page="audit"] thead{background:#f4f4f4}
+@media(max-height:850px){
+ .category-row{margin-bottom:16px}
+ .drop{min-height:220px;padding-top:20px;padding-bottom:20px}
+ .template-art{height:96px;margin-bottom:20px}
+ .template-choice{padding-top:20px;padding-bottom:20px}
+ .ready-art .volume-scene,.export-view .volume-scene{height:170px;margin-top:-10px}
+ .export-view{min-height:290px;padding-bottom:22px}
+ .download-card{margin:20px 0 12px;padding:18px 22px}
+ .importer-form{padding:24px 28px}
+ .form-section-head{margin-bottom:18px}
+ .field{margin-bottom:16px}
+ .field>span{margin-bottom:7px}
+ .field input,.field textarea{padding:10px 14px}
+ .field textarea{min-height:80px;resize:none}
+ .importer-form-footer{padding-top:16px;gap:18px}
+ .return-generator{margin-top:12px}
+ .form-message{margin-top:10px}
+}
+@media(max-width:620px){
+ .header{padding-inline:20px}
+ .hero,.hero:has(+.wide),body[data-page="importer"] .hero{padding-top:14px;padding-bottom:22px}
+ .hero h1{font-size:clamp(42px,7.6dvh,58px);margin-bottom:12px}
+ body[data-page]:not([data-page="upload"]) .hero h1{font-size:clamp(40px,7.2dvh,56px)}
+ .hero p{font-size:13px;line-height:1.5}
+ .steps{margin-bottom:18px}
+ .category-row{display:flex;gap:12px;margin-bottom:14px}
+ .category-row>span{margin:0;font-size:11px}
+ .category{padding:10px 14px;font-size:12px}
+ .drop{min-height:214px;padding:20px 16px}
+ .template-choices{gap:12px}
+ .template-choice{min-height:122px;padding:18px 20px}
+ .template-art{margin:0;height:80px}
+ .template-copy strong{font-size:18px}
+ .template-intro{margin-bottom:14px}
+ .export-summary{padding:20px 20px 6px}
+ .export-summary-top{margin-bottom:18px}
+ .export-facts>div{padding:12px 0}
+ .ready-art .volume-scene{height:155px}
+ .download-card{padding:16px;margin-top:18px;margin-bottom:10px;gap:10px}
+ .download-now{margin-top:0}
+ .importer-form{padding:20px}
+ .form-section-head{gap:5px;margin-bottom:16px}
+ .field{margin-bottom:14px}
+ .field textarea{min-height:82px;height:82px}
+ .field input,.field textarea{padding:9px 12px}
+ .importer-form-footer{gap:12px}
+ .importer-form-footer p{max-width:none}
+ .footer{padding-top:14px;min-height:58px}
+}
+
+/* Creation takes over the screen until the download transition begins. */
+body[data-generating="true"] .header,body[data-generating="true"] .hero,body[data-generating="true"] .steps,body[data-generating="true"] .footer{display:none!important}
+body[data-generating="true"] main{max-width:none;width:100%;padding:0}
+body[data-generating="true"] .workspace{max-width:none;width:100%;margin:0;animation:none}
+body[data-generating="true"] .stage{min-height:100dvh}
+.generation-scene{height:100dvh;display:grid;place-items:center;overflow:hidden;animation:generation-reveal .65s var(--ease) both}
+.generation-scene .volume-scene{width:min(90vw,960px);max-width:none;height:min(86dvh,680px);margin:0}
+.generation-scene .volume-shadow{bottom:15%;width:38%;left:31%;filter:blur(30px)}
+@keyframes generation-reveal{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+
+/* A changing caption explains the document assembly. */
+.generation-scene{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:0;padding:20px}
+.generation-scene .volume-scene{width:min(90vw,900px);height:min(66dvh,540px);flex-shrink:0}
+.generation-caption{text-align:center;min-height:100px;margin-top:-12px;max-width:100%;position:relative}
+.generation-message{display:block;font-size:clamp(24px,3vw,36px);font-weight:500;letter-spacing:-.035em;line-height:1.25;color:var(--ink)}
+.generation-message>span{display:inline-block;animation:caption-word .7s var(--ease) both;animation-delay:calc(var(--word)*65ms)}
+.generation-pulses{display:flex;justify-content:center;gap:8px;margin-top:24px}
+.generation-pulses i{height:3px;width:24px;border-radius:3px;background:var(--line);transition:background .4s,width .4s}
+.generation-pulses i.complete{background:var(--red);opacity:.4}
+.generation-pulses i.active{width:40px;background:var(--red);animation:caption-pulse 1.4s ease-in-out infinite}
+@keyframes caption-word{from{opacity:0;transform:translateY(14px);filter:blur(6px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+@keyframes caption-pulse{50%{opacity:.35}}
+@media(max-height:500px){.generation-scene .volume-scene{height:58dvh}.generation-caption{min-height:65px;margin-top:-15px}.generation-pulses{margin-top:14px}}
+
+/* Two clear upload states: category guidance, then an active file target. */
+.categories{position:relative}
+
+body[data-page="upload"] .drop{position:relative}
+html body[data-page="upload"] .drop.disabled{background:none;border-color:var(--line);box-shadow:none;backdrop-filter:none}
+.drop.disabled h2{font-size:20px;font-weight:400;margin:0;color:var(--muted)}
+.drop.awaiting-file{animation:upload-target-in .5s var(--ease) both}
+.upload-border{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;color:var(--red)}
+.upload-border rect{width:calc(100% - 2px);height:calc(100% - 2px);fill:none;stroke:currentColor;stroke-width:1.25;stroke-linecap:round;stroke-dasharray:12 88;animation:upload-perimeter 5s linear infinite}
+.drop.awaiting-file h2{font-size:20px;margin-bottom:7px}
+.drop.awaiting-file p{margin-bottom:20px}
+
+@keyframes upload-perimeter{to{stroke-dashoffset:-100}}
+@keyframes upload-target-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:620px){.drop.disabled h2{font-size:17px;margin:0}.drop.awaiting-file h2{font-size:18px}.upload-border rect{rx:17px}}
+
+/* Keep the target outline visible and the upload icon upright. */
+html[data-theme="mono"] body[data-page="upload"] .drop{border-color:#0000002b}
+body[data-page="upload"] .drop .upload-symbol{transform:none}
+body[data-page="upload"] .drop:not(.disabled):hover .upload-symbol{transform:translateY(-3px)}
+
+/* The guide is anchored to the centered prompt and the category buttons. */
+body[data-page="upload"] .stage{position:relative}
+.category-guide{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2;color:var(--red)}
+.category-guide path{stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.category-guide .guide-line{stroke-dasharray:100 100;stroke-dashoffset:100;animation:category-trace 3s ease-in-out infinite}
+.category-guide .guide-tip{opacity:0;animation:category-tip 3s ease-in-out infinite}
+@keyframes category-trace{0%,8%{stroke-dashoffset:100}43%,60%{stroke-dashoffset:0}90%,100%{stroke-dashoffset:-100}}
+@keyframes category-tip{0%,37%{opacity:0}44%,65%{opacity:1}76%,100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.category-guide .guide-line{stroke-dashoffset:0}.category-guide .guide-tip{opacity:1}}
+
+.context:has(.template-download):before{display:none}
+.template-download{display:inline-block;font-size:12px;padding:7px 0;text-decoration:none}
+.template-download:hover{text-decoration:underline;text-underline-offset:4px}
+@media(max-width:620px){.template-download{font-size:10px}}
+
+/* One left-to-right underline for all text actions. */
+.footer .actions{margin-left:auto}
+html[data-theme] :is(.header nav a,.text-link,.back,.sku-link,.remove){position:relative;--underline-inset-left:0px;--underline-inset-right:0px;--underline-bottom:4px;text-decoration:none}
+html[data-theme] :is(.header nav a,.text-link,.back,.sku-link,.remove):is(:hover,:focus-visible){text-decoration:none}
+html[data-theme] :is(.header nav a,.text-link,.back,.sku-link,.remove):after{content:'';position:absolute;left:var(--underline-inset-left);right:var(--underline-inset-right);bottom:var(--underline-bottom);height:3px;border-radius:1px;background:var(--red);opacity:.3;transform:scaleX(0);transform-origin:left center;transition:transform .36s var(--ease);pointer-events:none}
+html[data-theme="mono"] :is(.header nav a,.text-link,.back,.sku-link,.remove):after{opacity:.17}
+html[data-theme] :is(.header nav a,.text-link,.back,.sku-link,.remove):is(:hover,:focus-visible):not(:disabled):after{transform:scaleX(1)}
+html[data-theme] .header nav a{--underline-bottom:7px}
+html[data-theme] .back{--underline-inset-left:11px;--underline-inset-right:11px;--underline-bottom:8px}
+html[data-theme] .sku-link{--underline-bottom:-2px}
+html[data-theme] .remove{--underline-inset-left:10px;--underline-bottom:7px}
+@media(max-width:620px){html[data-theme] .back{--underline-inset-left:5px;--underline-inset-right:5px;--underline-bottom:6px}html[data-theme] .remove{--underline-inset-left:5px}}

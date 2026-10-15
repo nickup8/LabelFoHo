@@ -1,13 +1,23 @@
-import { useState, useCallback } from 'react';
 import { Head } from '@inertiajs/react';
-import UploadStep from '@/pages/Labels/Steps/UploadStep';
+import { useState } from 'react';
 import AuditStep from '@/components/Labels/Steps/AuditStep';
-import TemplateStep from '@/components/Labels/Steps/TemplateStep';
 import ExportStep from '@/components/Labels/Steps/ExportStep';
+import TemplateStep from '@/components/Labels/Steps/TemplateStep';
+import {
+    templateCountFor
+    
+} from '@/components/Labels/WizardStepper';
+import type {WizardCategories} from '@/components/Labels/WizardStepper';
+import UploadStep from '@/pages/Labels/Steps/UploadStep';
+import {
+    readWizardCategory,
+    writeWizardCategory,
+} from '@/pages/Labels/wizardCategory';
 
 interface Session {
     id: string;
     status: string;
+    category: string | null;
     original_filename: string;
     parsed_data: Record<string, unknown>;
     validation_results: Array<{
@@ -34,32 +44,71 @@ interface Template {
     static: Record<string, unknown>;
 }
 
+interface ImporterCard {
+    name: string;
+    legal_address: string;
+    phone: string;
+    is_complete: boolean;
+}
+
 interface Props {
     session: Session | null;
     step: number;
     templates: Record<string, Template>;
+    categories: WizardCategories;
+    importer: ImporterCard | null;
 }
 
 export default function LabelsWizard({
     session,
     step,
+    categories,
+    importer,
 }: Props) {
     const [localStep, setLocalStep] = useState<number | null>(null);
+    const [category, setCategoryState] = useState<string | null>(
+        readWizardCategory,
+    );
+
+    const setCategory = (value: string) => {
+        writeWizardCategory(value);
+        setCategoryState(value);
+    };
 
     const effectiveStep = localStep ?? step;
+    const sessionTemplateCount = templateCountFor(
+        categories,
+        session?.category ?? null,
+    );
 
     return (
         <>
             <Head title="Генерация бирок FoHo" />
 
             <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-                {effectiveStep === 1 && <UploadStep />}
-                {effectiveStep === 2 && session && <AuditStep session={session as any} />}
+                {effectiveStep === 1 && (
+                    <UploadStep
+                        categories={categories}
+                        category={category}
+                        onCategoryChange={setCategory}
+                        session={session}
+                    />
+                )}
+                {effectiveStep === 2 && session && (
+                    <AuditStep
+                        session={session as any}
+                        importer={importer}
+                        categories={categories}
+                    />
+                )}
                 {effectiveStep === 3 && session && (
-                    <TemplateStep session={session} />
+                    <TemplateStep session={session} categories={categories} />
                 )}
                 {effectiveStep === 4 && session && (
-                    <ExportStep sessionId={session.id} />
+                    <ExportStep
+                        sessionId={session.id}
+                        templateCount={sessionTemplateCount}
+                    />
                 )}
             </div>
         </>

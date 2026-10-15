@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru" data-theme="mono">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FoHo — Реквизиты импортёра</title>
+<meta name="description" content="Генератор этикеток FoHo. Загрузка, аудит данных, выбор шаблона и экспорт PDF.">
+<link rel="preload" href="assets/fonts/golos-text.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/white.css">
+<link rel="stylesheet" href="css/layout.css">
+<script src="js/motion.js" defer>
+</script>
+<script src="js/config.js" defer>
+</script>
+<script src="js/fixtures.js" defer>
+</script>
+<script src="js/ui.js" defer>
+</script>
+<script src="js/viewport.js" defer>
+</script>
+<script src="js/category-guide.js" defer>
+</script>
+</head>
+<body data-initial-page="importer">
+<header class="header">
+<a href="?page=upload" id="brand-home" class="logo" aria-label="FoHo">
+<img src="assets/brand/foho-logo.png" alt="FoHo">
+</a>
+<nav aria-label="Разделы приложения">
+<a href="?page=upload" id="generator-nav" aria-current="page">Генератор этикеток</a>
+<a href="?page=importer" id="importer-nav">Импортёр</a>
+</nav>
+</header>
+<main>
+<section class="hero">
+<h1 id="page-title">Генератор <span>этикеток</span>
+</h1>
+<p id="page-subtitle">Выберите категорию и загрузите файл с данными товаров.</p>
+</section>
+<section class="workspace" id="workspace" aria-label="Подготовка этикеток">
+<ol class="steps" id="steps" aria-label="Этапы подготовки">
+</ol>
+<div id="stage" class="stage">
+</div>
+<div class="footer" id="footer">
+<div id="context" class="context" aria-live="polite">
+</div>
+<div class="actions">
+<button id="back" class="back" hidden>Назад</button>
+<button id="next" class="primary" disabled>Далее <span aria-hidden="true">↗</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<input id="file" type="file" accept=".csv,.xlsx,.xls" hidden>
+<div id="announcement" class="sr-only" role="status" aria-live="polite">
+</div>
+<div id="toast" class="toast" role="status" hidden>
+</div>
+</body>
+</html>

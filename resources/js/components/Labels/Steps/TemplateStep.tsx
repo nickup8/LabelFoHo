@@ -1,15 +1,14 @@
 import { router, useForm } from '@inertiajs/react';
 import { ArrowLeft, Tag, Square, Ticket } from 'lucide-react';
+import WizardStepper, {
+  templateCountFor,
+  wizardSteps
+  
+} from '@/components/Labels/WizardStepper';
+import type {WizardCategories} from '@/components/Labels/WizardStepper';
 import { cn } from '@/lib/utils';
 import labels from '@/routes/labels';
 import type { LabelTemplateType } from '@/types/labels';
-
-const STEPS = [
-  { id: 1, label: 'Загрузка' },
-  { id: 2, label: 'Аудит' },
-  { id: 3, label: 'Шаблон' },
-  { id: 4, label: 'Экспорт' },
-] as const;
 
 const TEMPLATE_TYPE_OPTIONS: { value: LabelTemplateType; label: string; description: string; icon: typeof Tag }[] = [
   { value: 'napkin', label: 'Наклейка (салфетки)', description: 'Стандартная наклейка для салфеток', icon: Tag },
@@ -19,10 +18,12 @@ const TEMPLATE_TYPE_OPTIONS: { value: LabelTemplateType; label: string; descript
 
 interface Session {
   id: string;
+  category: string | null;
 }
 
 interface Props {
   session: Session;
+  categories: WizardCategories;
 }
 
 interface TemplateForm {
@@ -30,11 +31,28 @@ interface TemplateForm {
   template_type: LabelTemplateType | null;
 }
 
-export default function TemplateStep({ session }: Props) {
+export default function TemplateStep({ session, categories }: Props) {
   const { data, setData, post, processing } = useForm<TemplateForm>({
     session_id: session.id,
     template_type: null,
   });
+
+  const allowedTemplates = session.category
+    ? categories?.[session.category]?.templates
+    : undefined;
+
+  const options = allowedTemplates
+    ? TEMPLATE_TYPE_OPTIONS.filter((opt) => allowedTemplates.includes(opt.value))
+    : TEMPLATE_TYPE_OPTIONS;
+
+  const steps = wizardSteps(templateCountFor(categories, session.category));
+
+  const gridColumns =
+    options.length === 1
+      ? 'sm:grid-cols-1'
+      : options.length === 2
+        ? 'sm:grid-cols-2'
+        : 'sm:grid-cols-3';
 
   const handleBack = () =>
     router.get(labels.index({ query: { session: session.id, step: 2 } }).url);
@@ -43,44 +61,7 @@ export default function TemplateStep({ session }: Props) {
   return (
     <div className="space-y-10">
 
-      {/* Stepper */}
-      <nav aria-label="Прогресс" className="relative">
-        <div className="absolute left-0 right-0 top-5 h-0.5 bg-zinc-200 dark:bg-zinc-800" />
-        <div className="flex items-center justify-between">
-          {STEPS.map((s) => {
-            const isCompleted = s.id === 1 || s.id === 2;
-            const isActive = s.id === 3;
-
-            return (
-              <div
-                key={s.id}
-                className="relative flex flex-col items-center bg-[var(--color-bg)] dark:bg-zinc-900 px-4"
-              >
-                <div
-                  className={cn(
-                    'flex size-10 items-center justify-center rounded-full text-sm font-semibold transition-colors',
-                    isCompleted && 'bg-green-500 text-white',
-                    isActive && 'bg-[var(--color-accent)] text-white',
-                    !isCompleted && !isActive && 'bg-zinc-100 dark:bg-zinc-800 text-[var(--color-muted)] dark:text-zinc-400',
-                  )}
-                >
-                  {isCompleted ? '✓' : s.id}
-                </div>
-                <span
-                  className={cn(
-                    'mt-2 text-xs font-medium',
-                    isCompleted && 'text-green-600 dark:text-green-400',
-                    isActive && 'text-[var(--color-fg)] dark:text-zinc-100',
-                    !isCompleted && !isActive && 'text-[var(--color-muted)] dark:text-zinc-400',
-                  )}
-                >
-                  {s.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </nav>
+      <WizardStepper steps={steps} currentId={3} />
 
       {/* Heading */}
       <div>
@@ -97,10 +78,11 @@ export default function TemplateStep({ session }: Props) {
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)] dark:text-zinc-100">
           Тип этикетки
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {TEMPLATE_TYPE_OPTIONS.map((opt) => {
+        <div className={cn('grid grid-cols-1 gap-3', gridColumns)}>
+          {options.map((opt) => {
             const Icon = opt.icon;
             const isSelected = data.template_type === opt.value;
+
             return (
               <button
                 key={opt.value}

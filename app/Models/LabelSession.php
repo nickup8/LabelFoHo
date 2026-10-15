@@ -14,6 +14,8 @@ class LabelSession extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        'guest_token',
+        'category',
         'original_filename',
         'stored_file_path',
         'parsed_data',

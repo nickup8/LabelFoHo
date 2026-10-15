@@ -57,6 +57,25 @@ export default function Header() {
                     </svg>
                 </Link>
 
+                <div className="flex items-center gap-4">
+                    <nav className="hidden items-center gap-1 md:flex">
+                        <Link
+                            href="/labels"
+                            prefetch
+                            className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-[var(--color-muted)] transition-colors hover:bg-[var(--color-fg)]/5 hover:text-[var(--color-fg)] dark:text-zinc-400 dark:hover:text-zinc-100"
+                        >
+                            Генератор этикеток
+                        </Link>
+                        <Link
+                            href="/importers"
+                            prefetch
+                            className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-[var(--color-muted)] transition-colors hover:bg-[var(--color-fg)]/5 hover:text-[var(--color-fg)] dark:text-zinc-400 dark:hover:text-zinc-100"
+                        >
+                            Импортёр
+                        </Link>
+                    </nav>
+                </div>
+
                 <div className="flex items-center gap-1">
                     {user && (
                         <DropdownMenu>

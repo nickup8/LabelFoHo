@@ -9,6 +9,7 @@ interface PdfEngineProps {
     labels: LabelData[];
     templateType: LabelTemplateType;
     onReady: (blob: Blob) => void;
+    onError: (message: string) => void;
 }
 
 const documentComponents = {
@@ -17,7 +18,7 @@ const documentComponents = {
     tag: TagLabelDocument,
 } as const;
 
-export default function PdfEngine({ labels, templateType, onReady }: PdfEngineProps) {
+export default function PdfEngine({ labels, templateType, onReady, onError }: PdfEngineProps) {
     const DocumentComponent = documentComponents[templateType];
 
     const memoizedDocument = useMemo(
@@ -25,14 +26,25 @@ export default function PdfEngine({ labels, templateType, onReady }: PdfEnginePr
         [labels, DocumentComponent],
     );
     const [pdfInstance] = usePDF({ document: memoizedDocument });
-    const done = useRef(false);
+    const settled = useRef(false);
 
     useEffect(() => {
-        if (!pdfInstance.loading && pdfInstance.blob && !done.current) {
-            done.current = true;
+        if (settled.current) {
+            return;
+        }
+
+        if (pdfInstance.error) {
+            settled.current = true;
+            onError(pdfInstance.error);
+
+            return;
+        }
+
+        if (!pdfInstance.loading && pdfInstance.blob) {
+            settled.current = true;
             onReady(pdfInstance.blob);
         }
-    }, [pdfInstance.loading, pdfInstance.blob, onReady]);
+    }, [pdfInstance.loading, pdfInstance.blob, pdfInstance.error, onReady, onError]);
 
     return null;
 }

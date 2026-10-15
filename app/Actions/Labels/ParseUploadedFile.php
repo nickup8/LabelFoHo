@@ -12,9 +12,9 @@ class ParseUploadedFile
         private LabelSessionService $sessionService,
     ) {}
 
-    public function handle(UploadedFile $file): LabelSession
+    public function handle(UploadedFile $file, string $guestToken, string $category): LabelSession
     {
-        $session = $this->sessionService->createFromUpload($file);
+        $session = $this->sessionService->createFromUpload($file, $guestToken, $category);
 
         return $this->sessionService->parseAndValidate($session);
     }

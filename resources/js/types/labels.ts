@@ -1,11 +1,16 @@
 export type LabelTemplateType = 'napkin' | 'mat' | 'tag';
 
+/** Реквизиты импортёра, используемые в ответе /labels/download */
+export interface ImporterRequisites {
+    id: number;
+    name: string;
+    address: string;
+    phone: string;
+}
+
 export interface LabelTemplate {
     id: number;
     title: string;
-    importer_name: string;
-    importer_address: string;
-    importer_phone: string;
     manufacturer_name: string;
     default_width_px: number;
     default_height_px: number;
@@ -24,7 +29,9 @@ export interface LabelData {
     sku: string;
     size: string;
     is_circular: boolean;
+    is_kit: boolean;
     composition: string;
+    composition_raw: string;
     importer_name: string;
     importer_address: string;
     importer_phone: string;
@@ -33,8 +40,8 @@ export interface LabelData {
     manufacture_date: string | null;
     barcode: string;
     barcode_data_uri: string | null;
-    recycle_code: string;
-    recycle_label: string;
+    recycle_code: string | null;
+    recycle_label: string | null;
     certification_marks: string[];
     regulation_text: string;
 }
@@ -44,6 +51,7 @@ export interface LabelsDownloadResponse {
     session_id: string;
     template_id: string;
     template_type: LabelTemplateType;
+    importer?: ImporterRequisites;
     labels: LabelData[];
     count: number;
 }

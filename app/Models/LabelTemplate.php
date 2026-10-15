@@ -10,9 +10,6 @@ class LabelTemplate extends Model
 
     protected $fillable = [
         'title',
-        'importer_name',
-        'importer_address',
-        'importer_phone',
         'manufacturer_name',
         'default_width_px',
         'default_height_px',

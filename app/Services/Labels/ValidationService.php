@@ -4,7 +4,7 @@ namespace App\Services\Labels;
 
 class ValidationService
 {
-    public function validate(array $parsedData, string $templateId = 'foho_default'): array
+    public function validate(array $parsedData, string $templateId = 'foho_default', ?string $category = null): array
     {
         $template = config("labels.templates.{$templateId}");
         $rules = $template['validation'] ?? [];
@@ -17,6 +17,15 @@ class ValidationService
 
             foreach ($requiredFields as $field) {
                 $value = $data[$field] ?? '';
+
+                if ($field === 'factory_name') {
+                    if (trim((string) $value) === '') {
+                        $errors[] = 'Изготовитель (столбец «Название фабрики») не указан';
+                    }
+
+                    continue;
+                }
+
                 if (empty($value) && $value !== '0') {
                     $errors[] = "Поле '{$field}' обязательно";
                 }
@@ -32,10 +41,8 @@ class ValidationService
                 $errors = array_merge($errors, $sizeErrors);
             }
 
-            if (! empty($data['composition'])) {
-                $compositionErrors = $this->validateComposition($data);
-                $errors = array_merge($errors, $compositionErrors);
-            }
+            $compositionErrors = $this->validateComposition($data, $category);
+            $errors = array_merge($errors, $compositionErrors);
 
             $validatedRows[] = [
                 'row' => $entry['row'],
@@ -48,14 +55,21 @@ class ValidationService
         return $validatedRows;
     }
 
-    private function validateComposition(array $data): array
+    private function validateComposition(array $data, ?string $category): array
     {
         $errors = [];
 
         $recycling = $data['recycling'] ?? null;
         $composition = $data['composition'] ?? '';
+        $compositionRaw = $data['composition_raw'] ?? '';
 
-        if ($composition !== '' && $recycling === null) {
+        if (trim((string) $composition) === '' && trim((string) $compositionRaw) === '') {
+            $errors[] = 'Состав не указан';
+
+            return $errors;
+        }
+
+        if ($category !== 'mats' && $composition !== '' && $recycling === null) {
             $errors[] = 'Не удалось распознать состав материала для подбора знака переработки';
         }
 

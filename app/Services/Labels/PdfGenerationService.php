@@ -13,24 +13,24 @@ class PdfGenerationService
         private TemplateService $templateService,
     ) {}
 
-    private function getLayoutConfig(): array
+    private function getLayoutConfig(?array $importer = null): array
     {
         $template = LabelTemplate::where('is_active', true)->first();
 
         return [
             'width_px' => $template?->default_width_px ?? 469,
             'height_px' => $template?->default_height_px ?? 634,
-            'importer_name' => $template?->importer_name ?? 'ИП Климин П. А.',
-            'importer_address' => $template?->importer_address ?? '358007, Россия, респ. Калмыкия, г. Элиста, пос. Салын, ул. Красная, 9',
-            'importer_phone' => $template?->importer_phone ?? '+7 (995) 771-27-92',
+            'importer_name' => $importer['name'] ?? '',
+            'importer_address' => $importer['address'] ?? '',
+            'importer_phone' => $importer['phone'] ?? '',
             'manufacturer_name' => $template?->manufacturer_name ?? '',
             'canvas_elements' => $template?->canvas_elements,
         ];
     }
 
-    public function generateSingle(array $row, string $templateId): string
+    public function generateSingle(array $row, string $templateId, ?array $importer = null): string
     {
-        $layout = $this->getLayoutConfig();
+        $layout = $this->getLayoutConfig($importer);
 
         $barcodeDataUri = null;
 
@@ -53,9 +53,9 @@ class PdfGenerationService
         return $pdf->output();
     }
 
-    public function generateMultiple(array $rows, string $templateId): string
+    public function generateMultiple(array $rows, string $templateId, ?array $importer = null): string
     {
-        $layout = $this->getLayoutConfig();
+        $layout = $this->getLayoutConfig($importer);
         $brand = $this->templateService->getBrandConfig();
         $static = $this->templateService->getStaticContent($templateId);
 
@@ -85,7 +85,8 @@ class PdfGenerationService
         array $rows,
         string $templateId,
         string $sessionId,
-        string $format = 'pdf'
+        string $format = 'pdf',
+        ?array $importer = null
     ): string {
         $outputDir = "labels/{$sessionId}";
         Storage::makeDirectory($outputDir);
@@ -98,7 +99,7 @@ class PdfGenerationService
             }
 
             foreach ($rows as $index => $row) {
-                $pdfContent = $this->generateSingle($row, $templateId);
+                $pdfContent = $this->generateSingle($row, $templateId, $importer);
                 $filename = "label_{$row['row']}.pdf";
                 $zip->addFromString($filename, $pdfContent);
             }
@@ -107,7 +108,7 @@ class PdfGenerationService
             return "{$outputDir}/labels.zip";
         }
 
-        $pdfContent = $this->generateMultiple($rows, $templateId);
+        $pdfContent = $this->generateMultiple($rows, $templateId, $importer);
         $pdfPath = "{$outputDir}/labels.pdf";
         Storage::put($pdfPath, $pdfContent);
 

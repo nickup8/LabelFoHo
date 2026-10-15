@@ -1,15 +1,14 @@
-import { useState, useMemo } from 'react';
 import { router } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Phone, XCircle } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import WizardStepper, {
+  templateCountFor,
+  wizardSteps
+  
+} from '@/components/Labels/WizardStepper';
+import type {WizardCategories} from '@/components/Labels/WizardStepper';
 import { cn, formatSize } from '@/lib/utils';
 import labels from '@/routes/labels';
-
-const STEPS = [
-  { id: 1, label: 'Загрузка' },
-  { id: 2, label: 'Аудит' },
-  { id: 3, label: 'Шаблон' },
-  { id: 4, label: 'Экспорт' },
-] as const;
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -21,6 +20,7 @@ interface RowData {
   barcode: string;
   size: string;
   composition: string;
+  composition_raw?: string;
   manufacturer: string;
   factory_name: string;
   manufacture_date: string;
@@ -36,23 +36,38 @@ interface ValidationRow {
 interface Session {
   id: string;
   status: string;
+  category: string | null;
   original_filename: string;
   validation_results: ValidationRow[];
 }
 
-interface Props {
-  session: Session;
+interface ImporterCard {
+  name: string;
+  legal_address: string;
+  phone: string;
+  is_complete: boolean;
 }
 
-export default function AuditStep({ session }: Props) {
+interface Props {
+  session: Session;
+  importer: ImporterCard | null;
+  categories: WizardCategories;
+}
+
+export default function AuditStep({ session, importer, categories }: Props) {
   const rows: ValidationRow[] = session.validation_results ?? [];
   const total = rows.length;
   const validCount = rows.filter((r) => r.is_valid).length;
   const invalidCount = rows.filter((r) => !r.is_valid).length;
 
+  const templateCount = templateCountFor(categories, session.category);
+  const steps = wizardSteps(templateCount);
+
   const [filter, setFilter] = useState<FilterMode>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
+
+  const importerReady = !!importer && importer.is_complete;
 
   const filteredRows = useMemo(() => {
     switch (filter) {
@@ -70,9 +85,20 @@ export default function AuditStep({ session }: Props) {
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, filteredRows.length);
 
-  const handleBack = () => router.get(labels.index().url);
-  const handleNext = () =>
-    router.get(labels.index({ query: { session: session.id, step: 3 } }).url);
+  const handleBack = () =>
+    router.get(labels.index({ query: { session: session.id, step: 1 } }).url);
+
+  const handleNext = () => {
+    if (invalidCount > 0) {
+      return;
+    }
+
+    router.get(
+      labels.index({
+        query: { session: session.id, step: templateCount === 1 ? 4 : 3 },
+      }).url,
+    );
+  };
 
   const switchFilter = (f: FilterMode) => {
     setFilter(f);
@@ -91,44 +117,7 @@ export default function AuditStep({ session }: Props) {
   return (
     <div className="space-y-10">
 
-      {/* Stepper */}
-      <nav aria-label="Прогресс" className="relative">
-        <div className="absolute left-0 right-0 top-5 h-0.5 bg-zinc-200 dark:bg-zinc-800" />
-        <div className="flex items-center justify-between">
-          {STEPS.map((s) => {
-            const isCompleted = s.id === 1;
-            const isActive = s.id === 2;
-
-            return (
-              <div
-                key={s.id}
-                className="relative flex flex-col items-center bg-[var(--color-bg)] dark:bg-zinc-900 px-4"
-              >
-                <div
-                  className={cn(
-                    'flex size-10 items-center justify-center rounded-full text-sm font-semibold transition-colors',
-                    isCompleted && 'bg-green-500 text-white',
-                    isActive && 'bg-[var(--color-accent)] text-white',
-                    !isCompleted && !isActive && 'bg-zinc-100 dark:bg-zinc-800 text-[var(--color-muted)] dark:text-zinc-400',
-                  )}
-                >
-                  {isCompleted ? '✓' : s.id}
-                </div>
-                <span
-                  className={cn(
-                    'mt-2 text-xs font-medium',
-                    isCompleted && 'text-green-600 dark:text-green-400',
-                    isActive && 'text-[var(--color-fg)] dark:text-zinc-100',
-                    !isCompleted && !isActive && 'text-[var(--color-muted)] dark:text-zinc-400',
-                  )}
-                >
-                  {s.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </nav>
+      <WizardStepper steps={steps} currentId={2} />
 
       {/* Heading + Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -167,6 +156,51 @@ export default function AuditStep({ session }: Props) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Shared importer card */}
+      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900 p-5">
+        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)] dark:text-zinc-100">
+          Импортёр
+        </h2>
+        <p className="mb-3 text-xs text-[var(--color-muted)] dark:text-zinc-400">
+          Единая карточка реквизитов применяется ко всем строкам и сессиям.
+          Без заполненной карточки экспорт PDF заблокирован.
+        </p>
+
+        <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/60">
+          {importer ? (
+            <div className="space-y-1.5 text-sm text-[var(--color-fg)] dark:text-zinc-100">
+              <p className="font-medium break-words">
+                {importer.name}
+              </p>
+              <p className="break-words text-xs text-[var(--color-muted)] dark:text-zinc-400">
+                {importer.legal_address}
+              </p>
+              <p className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] dark:text-zinc-400">
+                <Phone className="size-3.5 shrink-0" />
+                {importer.phone}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--color-muted)] dark:text-zinc-400">
+              Карточка импортёра не заполнена
+            </p>
+          )}
+        </div>
+
+        {!importerReady && (
+          <p className="mt-4 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+            <AlertTriangle className="size-3.5 shrink-0" />
+            Карточка импортёра не заполнена — экспорт PDF заблокирован.{' '}
+            <a
+              href="/importers"
+              className="font-semibold underline underline-offset-2 hover:text-red-700 dark:hover:text-red-300"
+            >
+              Заполнить карточку
+            </a>
+          </p>
+        )}
       </div>
 
       {/* Filter tabs */}
@@ -280,7 +314,9 @@ export default function AuditStep({ session }: Props) {
                         )}
                       </div>
                       <div className="text-[11px] text-[var(--color-muted)] dark:text-zinc-400 mt-0.5">
-                        {d.composition || '—'}
+                        {session.category === 'mats'
+                          ? d.composition_raw || d.composition || '—'
+                          : d.composition || '—'}
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-right">
@@ -396,30 +432,32 @@ export default function AuditStep({ session }: Props) {
       )}
 
       {/* Navigation */}
-      <div className="flex items-center justify-between pt-2">
-        <button
-          type="button"
-          onClick={handleBack}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 px-6 py-2.5 text-sm font-medium text-[var(--color-fg)] dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
-        >
-          <ArrowLeft className="size-4" />
-          Назад
-        </button>
+      <div className="flex flex-col items-end gap-2">
+        <div className="flex w-full items-center justify-between">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 px-6 py-2.5 text-sm font-medium text-[var(--color-fg)] dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
+          >
+            <ArrowLeft className="size-4" />
+            Назад
+          </button>
 
-        <button
-          type="button"
-          onClick={handleNext}
-          disabled={invalidCount > 0}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium shadow-sm transition-all',
-            invalidCount > 0
-              ? 'bg-zinc-200 dark:bg-zinc-800 text-[var(--color-muted)] dark:text-zinc-500 cursor-not-allowed opacity-50'
-              : 'bg-[var(--color-accent)] text-white hover:opacity-90',
-          )}
-        >
-          Далее
-          <ArrowRight className="size-4" />
-        </button>
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={invalidCount > 0}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium shadow-sm transition-all',
+              invalidCount === 0
+                ? 'bg-[var(--color-accent)] text-white hover:opacity-90'
+                : 'bg-zinc-200 dark:bg-zinc-800 text-[var(--color-muted)] dark:text-zinc-500 cursor-not-allowed opacity-50',
+            )}
+          >
+            Далее
+            <ArrowRight className="size-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -72,9 +72,6 @@ export default function Settings({ template }: Props) {
   const { flash } = usePage().props as { flash?: { success?: string } };
 
   const { data, setData, post, processing, errors } = useForm({
-    importer_name: template.importer_name,
-    importer_address: template.importer_address,
-    importer_phone: template.importer_phone,
     manufacturer_name: template.manufacturer_name,
     default_width_px: template.default_width_px,
     default_height_px: template.default_height_px,
@@ -468,40 +465,20 @@ export default function Settings({ template }: Props) {
 
           <details className="rounded-xl border border-border bg-card">
             <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-xs font-semibold text-muted-foreground hover:text-foreground">
-              Юридические данные и параметры
+              Параметры макета
             </summary>
             <div className="space-y-4 border-t border-border p-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Импортёр</label>
-                  <input
-                    type="text"
-                    value={data.importer_name}
-                    onChange={(e) => setData('importer_name', e.target.value)}
-                    className={inputClass}
-                  />
-                  {errors.importer_name && <p className="text-[10px] text-destructive">{errors.importer_name}</p>}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Телефон</label>
-                  <input
-                    type="text"
-                    value={data.importer_phone}
-                    onChange={(e) => setData('importer_phone', e.target.value)}
-                    className={inputClass}
-                  />
-                  {errors.importer_phone && <p className="text-[10px] text-destructive">{errors.importer_phone}</p>}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Адрес</label>
-                <textarea
-                  value={data.importer_address}
-                  onChange={(e) => setData('importer_address', e.target.value)}
-                  className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                />
-                {errors.importer_address && <p className="text-[10px] text-destructive">{errors.importer_address}</p>}
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Реквизиты импортёра (название, юридический адрес, телефон)
+                редактируются в{' '}
+                <a
+                  href="/importers"
+                  className="font-medium text-[var(--color-accent)] hover:underline"
+                >
+                  карточке «Импортёр»
+                </a>{' '}
+                и применяются при экспорте PDF.
+              </p>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium">Изготовитель</label>
                 <input

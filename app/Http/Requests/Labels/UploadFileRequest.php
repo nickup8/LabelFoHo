@@ -13,8 +13,11 @@ class UploadFileRequest extends FormRequest
 
     public function rules(): array
     {
+        $categories = implode(',', array_keys(config('labels.categories', [])));
+
         return [
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'category' => "required|string|in:{$categories}",
         ];
     }
 
@@ -24,6 +27,8 @@ class UploadFileRequest extends FormRequest
             'file.required' => 'Необходимо выбрать файл',
             'file.mimes' => 'Файл должен быть в формате XLSX, XLS или CSV',
             'file.max' => 'Размер файла не должен превышать 10 МБ',
+            'category.required' => 'Необходимо выбрать категорию (Салфетки или Коврики)',
+            'category.in' => 'Недопустимая категория',
         ];
     }
 }

@@ -111,6 +111,7 @@ class ExcelParsingService
             $sizeParsed = $this->parseSize($mapped['size'] ?? '');
             $mapped['size'] = $sizeParsed['normalized'];
             $mapped['is_circular'] = $sizeParsed['is_circular'];
+            $mapped['is_kit'] = $sizeParsed['is_kit'];
 
             $parsedRows[] = [
                 'row' => $rowIndex + 2,
@@ -163,40 +164,82 @@ class ExcelParsingService
     {
         $raw = trim($raw);
         if ($raw === '') {
-            return ['normalized' => '', 'is_circular' => false];
+            return ['normalized' => '', 'is_circular' => false, 'is_kit' => false];
         }
 
-        // 1. Удаляем суффикс "см" если есть
-        $raw = preg_replace('/\s*см\s*$/ui', '', $raw);
+        $work = $raw;
+        $isKit = false;
 
-        // 2. Заменяем русскую запятую на точку для нормализации float
-        $raw = str_replace(',', '.', $raw);
-
-        // 3. Удаляем все пробелы внутри строки для упрощения парсинга
-        $cleaned = preg_replace('/\s+/', '', $raw);
-
-        // 4. Прямоугольный формат: Ш x В
-        if (preg_match('/^(\d+(?:\.\d+)?)[xх×](\d+(?:\.\d+)?)$/u', $cleaned, $m)) {
-            $normalized = $m[1] . 'x' . $m[2] . ' см';
-            return [
-                'normalized' => $normalized,
-                'is_circular' => false,
-            ];
+        // Завершающая пометка «(комплект)»
+        if (preg_match('/\s*\(комплект\)\s*$/ui', $work)) {
+            $isKit = true;
+            $work = trim((string) preg_replace('/\s*\(комплект\)\s*$/ui', '', $work));
         }
 
-        // 5. Круглый формат: одно число (диаметр)
-        if (preg_match('/^\d+(?:\.\d+)?$/u', $cleaned)) {
-            return [
-                'normalized' => $cleaned . ' см',
-                'is_circular' => true,
-            ];
+        // Обычные и неразрывные пробелы → одиночный пробел
+        $work = trim((string) preg_replace('/[\s\x{00A0}]+/u', ' ', $work));
+
+        // Комплект из двух пар через «и» или «+»
+        $parts = preg_split('/\s*[и+]\s*/u', $work);
+        if (count($parts) > 2) {
+            return ['normalized' => $raw, 'is_circular' => false, 'is_kit' => false];
+        }
+        if (count($parts) === 2) {
+            $isKit = true;
         }
 
-        // 6. Fallback — возвращаем как есть
+        $parsedParts = [];
+        foreach ($parts as $part) {
+            $parsed = $this->parseSizePart($part);
+            if ($parsed === null) {
+                // Ошибка разбора — исходная строка без дописывания единиц
+                return ['normalized' => $raw, 'is_circular' => false, 'is_kit' => false];
+            }
+            $parsedParts[] = $parsed;
+        }
+
+        $isCircular = count($parsedParts) === 1 && $parsedParts[0][1] === null;
+        $isMulti = count($parsedParts) > 1;
+
+        $pieces = [];
+        foreach ($parsedParts as [$a, $b]) {
+            $text = $b === null
+                ? $this->sizeNumber($a)
+                : $this->sizeNumber($a) . '×' . $this->sizeNumber($b);
+            // У комплекта единица после каждой пары, у одиночного размера — одна в конце
+            $pieces[] = $isMulti ? $text . ' см' : $text;
+        }
+
         return [
-            'normalized' => $raw,
-            'is_circular' => false,
+            'normalized' => implode(' и ', $pieces) . ($isMulti ? '' : ' см'),
+            'is_circular' => $isCircular,
+            'is_kit' => $isKit,
         ];
+    }
+
+    /**
+     * Одна часть размера: «60x120», «30,5 × 40,5», «38 см.» → [число, число|null] | null.
+     */
+    private function parseSizePart(string $part): ?array
+    {
+        $part = trim($part);
+        $part = (string) preg_replace('/\s*см\.?\s*$/ui', '', $part);
+        $part = trim(str_replace(',', '.', $part));
+
+        // Разделитель обязателен: «30 40» и «30, 40» не склеиваются в одно число
+        if (! preg_match('/^(\d+(?:\.\d+)?)(?:\s*[xXхХ×*]\s*(\d+(?:\.\d+)?))?$/u', $part, $m)) {
+            return null;
+        }
+
+        return [$m[1], $m[2] ?? null];
+    }
+
+    /**
+     * Десятичный разделитель на выводе — запятая.
+     */
+    private function sizeNumber(string $number): string
+    {
+        return str_replace('.', ',', $number);
     }
 
     private function extractMaterials(string $raw): array
