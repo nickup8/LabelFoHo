@@ -2,6 +2,7 @@ import { router, useForm } from '@inertiajs/react';
 import { useCallback, useRef, useState } from 'react';
 import CategoryGuide from '@/components/Labels/CategoryGuide';
 import { useWizardNav } from '@/components/Labels/FohoShell';
+import VolumeScene from '@/components/Labels/VolumeScene';
 import type { WizardCategories } from '@/components/Labels/WizardStepper';
 import { cn } from '@/lib/utils';
 import labels from '@/routes/labels';
@@ -225,6 +226,7 @@ export default function UploadStep({
 
         post(labels.upload().url, {
             preserveScroll: true,
+            preserveState: true,
             onError: () => setData('file', null),
         });
     }, [data.category, data.file, processing, post, setData, setError]);
@@ -316,6 +318,7 @@ export default function UploadStep({
 
                 {processing ? (
                     <>
+                        <VolumeScene mode="uploading" />
                         <h2>Читаем файл</h2>
                         <p>Подготавливаем данные товаров</p>
                     </>

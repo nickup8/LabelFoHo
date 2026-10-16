@@ -82,7 +82,11 @@ export default function AuditStep({ session, importer, categories }: Props) {
   const to = Math.min(page * pageSize, filteredRows.length);
 
   const handleBack = () =>
-    router.get(labels.index({ query: { session: session.id, step: 1 } }).url);
+    router.get(
+      labels.index({ query: { session: session.id, step: 1 } }).url,
+      {},
+      { preserveState: true },
+    );
 
   const handleNext = () => {
     if (invalidCount > 0) {
@@ -93,6 +97,8 @@ export default function AuditStep({ session, importer, categories }: Props) {
       labels.index({
         query: { session: session.id, step: templateCount === 1 ? 4 : 3 },
       }).url,
+      {},
+      { preserveState: true },
     );
   };
 

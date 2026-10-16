@@ -1,0 +1,95 @@
+/* Isolated styles for the scene-transition overlay.
+   In the approved package the overlay is appended to <body>, outside the
+   application root, while the wizard CSS is scoped to .foho-root. The React
+   port mounts the overlay as a body portal too, so its rules live here and
+   never leak into the rest of the app. Values mirror the final approved
+   white (mono) theme of docs/foho-ui-white/css — components.css base with
+   white.css data-theme="mono" overrides — and the Golos font of the shell. */
+
+.scene-transition {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    overflow: hidden;
+    pointer-events: none;
+    visibility: hidden;
+}
+
+.scene-transition.active {
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.transition-layer {
+    position: absolute;
+    inset: -12% -20%;
+    transform: translateY(112%);
+    will-change: transform;
+    border-radius: 45% 45% 0 0;
+}
+
+.layer-one {
+    background: linear-gradient(140deg, #eaeaea, #a7a7a7);
+}
+
+.layer-two {
+    background:
+        radial-gradient(ellipse at 20% 80%, #00000088, transparent 65%),
+        linear-gradient(130deg, #111111, #404040);
+    inset: -7% -20%;
+}
+
+.transition-type {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    color: #f3f3f3;
+    opacity: 0;
+    pointer-events: none;
+    font-family: Golos, Arial, sans-serif;
+}
+
+.transition-number {
+    font-size: 13px;
+    align-self: center;
+    background: #2457f5;
+    border: 1px solid #2457f5;
+    border-radius: 50%;
+    width: 39px;
+    height: 39px;
+    display: grid;
+    place-items: center;
+    color: #fff;
+}
+
+.transition-word {
+    font-size: clamp(56px, 9vw, 132px);
+    font-weight: 500;
+    letter-spacing: -0.055em;
+    line-height: 1;
+}
+
+@media (max-width: 620px) {
+    .transition-type {
+        gap: 15px;
+    }
+
+    .transition-number {
+        width: 29px;
+        height: 29px;
+        font-size: 10px;
+    }
+
+    .transition-word {
+        font-size: 61px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .scene-transition {
+        display: none !important;
+    }
+}

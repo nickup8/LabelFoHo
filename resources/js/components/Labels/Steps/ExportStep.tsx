@@ -1,18 +1,18 @@
 import { router } from '@inertiajs/react';
+import { AlertCircle } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import {
-    ArrowLeft,
-    CheckCircle2,
-    Download,
-    FileText,
-    AlertCircle,
-    Sparkles,
-} from 'lucide-react';
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useWizardNav } from '@/components/Labels/FohoShell';
+    useGenerationScene,
+    useReadyScene,
+    useSceneTransition,
+    useWizardNav,
+} from '@/components/Labels/FohoShell';
 import PdfEngine from '@/components/Labels/PdfEngine';
 import type { LabelMode } from '@/components/Labels/TagLabelDocument';
+import VolumeScene from '@/components/Labels/VolumeScene';
 import { decideModes } from '@/lib/labelFit';
-import { cn } from '@/lib/utils';
+import labels from '@/routes/labels';
 import type {
     LabelData,
     LabelTemplateType,
@@ -33,118 +33,140 @@ interface ImportErrorBody {
     details?: string[];
 }
 
-const FETCHING_MESSAGES = [
-    'Магия FoHo запрашивает данные...',
-    'Священные алгоритмы связываются с сервером...',
-    'Извлекаем подготовленную структуру бирок...',
+/**
+ * Captions follow the real stages of creation instead of the package demo
+ * timers (2.3 / 4.8 / 7.2 s): the request starts on «pages», the PDF engine
+ * reports «assembling», and the blob finishing switches to «finishing» right
+ * before the ready transition. Errors never reach the ready screen.
+ */
+const GENERATION_MESSAGES = [
+    'Подготавливаем страницы',
+    'Собираем этикетки в PDF',
+    'Завершаем создание файла',
 ];
 
-const COMPILING_MESSAGES = [
-    'Данные получены! Начинаем плести штрихкоды...',
-    'Браузер компилирует PDF-страницы...',
-    'Укладываем этикетки в идеальный макет...',
-];
+const docIcon = (
+    <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        aria-hidden="true"
+    >
+        <path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6M9 16h6" />
+    </svg>
+);
 
-function FoHoMagic({
-    status,
-}: {
-    status: 'fetching' | 'compiling';
-}) {
-    const [msgIndex, setMsgIndex] = useState(0);
-    const messages =
-        status === 'fetching' ? FETCHING_MESSAGES : COMPILING_MESSAGES;
+function pluralize(
+    count: number,
+    forms: [one: string, few: string, many: string],
+): string {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
 
-    useEffect(() => {
-        setMsgIndex(0);
-        const id = setInterval(() => {
-            setMsgIndex((i) => (i + 1) % messages.length);
-        }, 1300);
+    if (mod10 === 1 && mod100 !== 11) {
+        return forms[0];
+    }
 
-        return () => clearInterval(id);
-    }, [status]);
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return forms[1];
+    }
+
+    return forms[2];
+}
+
+function GenerationCaption({ index }: { index: number }): ReactNode {
+    const message = GENERATION_MESSAGES[index] ?? GENERATION_MESSAGES[0];
 
     return (
-        <div className="flex flex-col items-center justify-center py-24">
-            <svg width="0" height="0" className="absolute">
-                <defs>
-                    <linearGradient
-                        id="sparkle-purple"
-                        x1="0"
-                        y1="0"
-                        x2="1"
-                        y2="1"
-                    >
-                        <stop offset="0%" stopColor="#9333ea" />
-                        <stop offset="100%" stopColor="#6366f1" />
-                    </linearGradient>
-                    <linearGradient
-                        id="sparkle-pink"
-                        x1="0"
-                        y1="0"
-                        x2="1"
-                        y2="1"
-                    >
-                        <stop offset="0%" stopColor="#ec4899" />
-                        <stop offset="100%" stopColor="#fb7185" />
-                    </linearGradient>
-                </defs>
-            </svg>
-
-            <p className="mb-6 text-[10px] font-semibold tracking-[0.25em] text-[var(--color-muted)]/50 uppercase">
-                МАГИЯ FOHO
-            </p>
-
-            <div className="relative mb-8 h-28 w-28">
-                <Sparkles
-                    size={80}
-                    className="absolute top-1 left-1 animate-[spin_5s_linear_infinite]"
-                    style={{ stroke: 'url(#sparkle-purple)' }}
-                />
-                <Sparkles
-                    size={40}
-                    className="absolute right-0 bottom-1"
-                    style={{
-                        stroke: 'url(#sparkle-pink)',
-                        animation: 'spin 3.5s linear infinite reverse',
-                    }}
-                />
-            </div>
-
-            <div className="min-h-[1.5rem] animate-pulse">
-                <p
-                    key={msgIndex}
-                    className="max-w-xs animate-[fadeIn_0.3s_ease-out] text-center text-sm text-[var(--color-muted)]"
-                >
-                    {messages[msgIndex]}
-                </p>
-            </div>
-        </div>
+        <>
+            <span className="generation-message" key={index}>
+                {message.split(' ').map((word, wordIndex) => (
+                    <Fragment key={wordIndex}>
+                        {wordIndex > 0 ? ' ' : null}
+                        <span style={{ '--word': wordIndex } as CSSProperties}>
+                            {word}
+                        </span>
+                    </Fragment>
+                ))}
+            </span>
+            <span className="generation-pulses" aria-hidden="true">
+                {GENERATION_MESSAGES.map((_, pulseIndex) => (
+                    <i
+                        key={pulseIndex}
+                        className={
+                            pulseIndex === index
+                                ? 'active'
+                                : pulseIndex < index
+                                  ? 'complete'
+                                  : ''
+                        }
+                    />
+                ))}
+            </span>
+        </>
     );
 }
 
 export default function ExportStep({ sessionId, templateCount }: Props) {
     const [status, setStatus] = useState<Status>('fetching');
-    const [labels, setLabels] = useState<LabelData[] | null>(null);
-    const [templateType, setTemplateType] = useState<LabelTemplateType>('napkin');
+    const [labelsData, setLabelsData] = useState<LabelData[] | null>(null);
+    const [templateType, setTemplateType] =
+        useState<LabelTemplateType>('napkin');
     const [modes, setModes] = useState<LabelMode[] | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [errorCardUrl, setErrorCardUrl] = useState<string | null>(null);
     const [errorDetails, setErrorDetails] = useState<string[]>([]);
+    const [readyShown, setReadyShown] = useState(false);
     const [fetchKey, setFetchKey] = useState(0);
+    const [objectUrl, setObjectUrl] = useState<string | null>(null);
     const objectUrlRef = useRef<string | null>(null);
+    const readyRanRef = useRef(false);
+
+    const scene = useSceneTransition();
 
     const backStep = templateCount === 1 ? 2 : 3;
-    const backLabel = templateCount === 1 ? 'Назад к аудиту' : 'Назад к шаблону';
+    const backLabel =
+        templateCount === 1 ? 'Назад к аудиту' : 'Назад к шаблону';
 
     const fileName = `foho_labels_${sessionId}.pdf`;
 
     const handleBack = () =>
-        router.get(`/labels?session=${sessionId}&step=${backStep}`);
+        router.get(
+            `/labels?session=${sessionId}&step=${backStep}`,
+            {},
+            {
+                preserveState: true,
+            },
+        );
 
     useWizardNav({
-        back: status === 'error' ? undefined : handleBack,
+        back: handleBack,
         backLabel,
     });
+
+    const creating =
+        status === 'fetching' ||
+        status === 'compiling' ||
+        (status === 'ready' && !readyShown);
+
+    useGenerationScene(creating);
+    useReadyScene(readyShown && status === 'ready');
+
+    // «Готовность» — тот же стандартный переход, подпись «Скачать PDF»;
+    // сама сцена меняется под слоями в момент onSwap.
+    useEffect(() => {
+        if (status !== 'ready' || readyRanRef.current) {
+            return;
+        }
+
+        readyRanRef.current = true;
+        scene.run({
+            stepId: 4,
+            label: 'Скачать PDF',
+            onSwap: () => setReadyShown(true),
+        });
+    }, [status, scene]);
 
     useEffect(() => {
         return () => {
@@ -163,12 +185,13 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
             setErrorMessage(null);
             setErrorCardUrl(null);
             setErrorDetails([]);
-            setLabels(null);
+            setLabelsData(null);
             setModes(null);
 
             if (objectUrlRef.current) {
                 URL.revokeObjectURL(objectUrlRef.current);
                 objectUrlRef.current = null;
+                setObjectUrl(null);
             }
 
             try {
@@ -215,7 +238,7 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
                     );
                 }
 
-                setLabels(data.labels);
+                setLabelsData(data.labels);
                 setTemplateType(data.template_type ?? 'napkin');
                 setStatus('compiling');
             } catch (e) {
@@ -242,13 +265,13 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
     // normal/compact до монтирования PdfEngine. Устаревший результат при смене
     // данных отбрасывается флагом cancelled.
     useEffect(() => {
-        if (!labels || templateType !== 'tag') {
+        if (!labelsData || templateType !== 'tag') {
             return;
         }
 
         let cancelled = false;
 
-        decideModes(labels)
+        decideModes(labelsData)
             .then((result) => {
                 if (cancelled) {
                     return;
@@ -283,7 +306,7 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
         return () => {
             cancelled = true;
         };
-    }, [labels, templateType]);
+    }, [labelsData, templateType]);
 
     const handleBlobReady = useCallback((b: Blob) => {
         if (objectUrlRef.current) {
@@ -291,6 +314,7 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
         }
 
         objectUrlRef.current = URL.createObjectURL(b);
+        setObjectUrl(objectUrlRef.current);
         setStatus('ready');
     }, []);
 
@@ -301,175 +325,162 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
         setStatus('error');
     }, []);
 
-    const count = labels?.length ?? 0;
+    const handleNewBatch = () => {
+        scene.run({ stepId: 1, hold: true });
 
-    const statusSubtitle =
-        status === 'fetching'
-            ? 'Загрузка данных...'
-            : status === 'compiling'
-              ? 'Компиляция PDF...'
-              : status === 'ready'
-                ? `Файл готов к скачиванию (${count} ${count === 1 ? 'этикетка' : count >= 2 && count <= 4 ? 'этикетки' : 'этикеток'})`
-                : 'Произошла ошибка';
+        router.get(
+            labels.index({ query: { step: 1 } }).url,
+            {},
+            { preserveState: true },
+        );
+    };
 
-    return (
-        <div className="mx-auto max-w-2xl space-y-10 py-12">
-            <style>{`
-                @keyframes fadeScaleIn {
-                    from { opacity: 0; transform: scale(0.95); }
-                    to { opacity: 1; transform: scale(1); }
-                }
-                @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-            `}</style>
+    const count = labelsData?.length ?? 0;
+    const captionIndex =
+        status === 'fetching' ? 0 : status === 'compiling' ? 1 : 2;
 
-            <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--color-accent)]/10">
-                    <FileText className="size-5 text-[var(--color-accent)]" />
-                </div>
-                <div>
-                    <p className="text-sm text-[var(--color-muted)]">
-                        {statusSubtitle}
-                    </p>
-                </div>
-            </div>
-
-            {(status === 'fetching' || status === 'compiling') && (
-                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)]">
-                    <FoHoMagic status={status} />
-                </div>
-            )}
-
-            {status === 'ready' && objectUrlRef.current && (
-                <div className="animate-[fadeScaleIn_0.5s_ease-out] space-y-6">
-                    <div className="text-center">
-                        <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-500" />
-                        <h2 className="text-3xl font-bold text-[var(--color-fg)]">
-                            PDF скомпилирован
-                        </h2>
-                        <p className="mt-2 text-base text-[var(--color-muted)]">
-                            Обработано{' '}
-                            <span className="font-semibold text-[var(--color-fg)]">
-                                {count}
-                            </span>{' '}
-                            {count === 1
-                                ? 'этикетка'
-                                : count >= 2 && count <= 4
-                                  ? 'этикетки'
-                                  : 'этикеток'}
+    if (status === 'error') {
+        return (
+            <section className="export-summary" role="alert">
+                <div className="export-summary-top">
+                    <div className="file-icon">
+                        <AlertCircle />
+                    </div>
+                    <div>
+                        <h2>Не удалось сформировать PDF</h2>
+                        <p className="error" role="alert">
+                            {errorMessage}
                         </p>
                     </div>
-
-                    <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-[var(--color-surface)] p-6 shadow-sm sm:flex-row">
-                        <div className="flex items-center gap-4">
-                            <div className="rounded-xl bg-red-50 p-3 text-red-500">
-                                <FileText className="size-6" />
-                            </div>
-                            <div>
-                                <h3 className="font-mono text-sm font-semibold text-zinc-700">
-                                    {fileName}
-                                </h3>
-                                <p className="text-xs text-[var(--color-muted)]">
-                                    PDF • {count}{' '}
-                                    {count === 1 ? 'страница' : 'страниц'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <a
-                            href={objectUrlRef.current}
-                            download={fileName}
-                            className={cn(
-                                'inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all sm:w-auto',
-                                'bg-[var(--color-accent)] hover:opacity-90',
-                            )}
-                        >
-                            <Download className="size-4" />
-                            Скачать мгновенно
-                        </a>
-                    </div>
-
-                    <div className="text-center">
-                        <a
-                            href="/labels?step=1"
-                            className="inline-flex items-center gap-2 text-sm font-medium text-[var(--color-accent)] transition-opacity hover:opacity-80"
-                        >
-                            <ArrowLeft className="size-4" />
-                            Создать новый пакет
-                        </a>
-                    </div>
                 </div>
-            )}
 
-            {status === 'error' && (
-                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-8">
-                    <div className="flex flex-col items-center gap-4 py-8 text-center">
-                        <AlertCircle className="size-12 text-red-500" />
-                        <div>
-                            <h2 className="text-lg font-semibold text-red-600">
-                                Не удалось сформировать PDF
-                            </h2>
-                            <p className="mt-1 max-w-md text-sm text-[var(--color-muted)]">
-                                {errorMessage}
-                            </p>
+                {errorDetails.length > 0 && !errorCardUrl && (
+                    <ul className="row-errors">
+                        {errorDetails.map((detail) => (
+                            <li key={detail}>{detail}</li>
+                        ))}
+                    </ul>
+                )}
+
+                <div className="mt-6 flex flex-wrap items-center justify-end gap-4">
+                    {errorCardUrl && (
+                        <a className="primary" href={errorCardUrl}>
+                            Заполнить карточку импортёра{' '}
+                            <span aria-hidden="true">↗</span>
+                        </a>
+                    )}
+                    {!errorCardUrl && errorDetails.length > 0 && (
+                        <a
+                            className="primary"
+                            href={`/labels?session=${sessionId}&step=2`}
+                        >
+                            Перейти к аудиту <span aria-hidden="true">↗</span>
+                        </a>
+                    )}
+                    <button
+                        type="button"
+                        className={
+                            errorCardUrl || errorDetails.length > 0
+                                ? 'text-link'
+                                : 'primary'
+                        }
+                        onClick={() => setFetchKey((k) => k + 1)}
+                    >
+                        Повторить
+                        {errorCardUrl || errorDetails.length > 0 ? ' ↗' : ''}
+                    </button>
+                </div>
+            </section>
+        );
+    }
+
+    if (readyShown) {
+        return (
+            <>
+                <section className="ready-layout">
+                    <div className="ready-art">
+                        <VolumeScene mode="ready" />
+                    </div>
+                    <div className="ready-copy">
+                        <span className="overline">Файл подготовлен</span>
+                        <h2 className="step-heading" tabIndex={-1}>
+                            Можно скачивать
+                        </h2>
+                        <p>
+                            {count}{' '}
+                            {pluralize(count, [
+                                'этикетка',
+                                'этикетки',
+                                'этикеток',
+                            ])}{' '}
+                            {pluralize(count, [
+                                'собрана',
+                                'собраны',
+                                'собраны',
+                            ])}{' '}
+                            в один PDF.
+                        </p>
+                    </div>
+                    <div className="download-card">
+                        <div className="file-icon">{docIcon}</div>
+                        <div className="download-info">
+                            <strong>{fileName}</strong>
+                            <span>
+                                PDF · {count}{' '}
+                                {pluralize(count, [
+                                    'страница',
+                                    'страницы',
+                                    'страниц',
+                                ])}
+                            </span>
                         </div>
-                        {errorDetails.length > 0 && !errorCardUrl && (
-                            <ul className="max-w-md space-y-1 text-left text-xs text-[var(--color-muted)]">
-                                {errorDetails.map((detail) => (
-                                    <li key={detail}>• {detail}</li>
-                                ))}
-                            </ul>
-                        )}
-                        <div className="flex flex-wrap items-center justify-center gap-3">
-                            {errorCardUrl && (
-                                <a
-                                    href={errorCardUrl}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90"
-                                >
-                                    <FileText className="size-4" />
-                                    Заполнить карточку импортёра
-                                </a>
-                            )}
-                            {!errorCardUrl && errorDetails.length > 0 && (
-                                <a
-                                    href={`/labels?session=${sessionId}&step=2`}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90"
-                                >
-                                    <FileText className="size-4" />
-                                    Перейти к аудиту
-                                </a>
-                            )}
-                            <button
-                                type="button"
-                                onClick={() => setFetchKey((k) => k + 1)}
-                                className={cn(
-                                    'inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-all hover:opacity-90',
-                                    errorCardUrl || errorDetails.length > 0
-                                        ? 'border border-zinc-300 bg-[var(--color-bg)] text-[var(--color-fg)]'
-                                        : 'bg-[var(--color-accent)] text-white',
-                                )}
+                        {objectUrl && (
+                            <a
+                                className="primary download-now"
+                                href={objectUrl}
+                                download={fileName}
                             >
-                                <Download className="size-4" />
-                                Повторить
-                            </button>
-                        </div>
+                                Скачать PDF <span aria-hidden="true">↓</span>
+                            </a>
+                        )}
                     </div>
-                </div>
-            )}
+                    <button
+                        type="button"
+                        className="text-link new-batch"
+                        onClick={handleNewBatch}
+                    >
+                        Создать новый пакет ↗
+                    </button>
+                </section>
+            </>
+        );
+    }
 
-            {labels &&
-                (status === 'compiling' || status === 'ready') &&
+    return (
+        <>
+            <section className="generation-scene" aria-label="Создание PDF">
+                <VolumeScene mode="generating" />
+                <div
+                    className="generation-caption"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                >
+                    <GenerationCaption index={captionIndex} />
+                </div>
+            </section>
+
+            {labelsData &&
+                status === 'compiling' &&
                 (templateType !== 'tag' || modes !== null) && (
                     <PdfEngine
-                        labels={labels}
+                        labels={labelsData}
                         templateType={templateType}
                         modes={modes}
                         onReady={handleBlobReady}
                         onError={handleGenerateError}
                     />
                 )}
-        </div>
+        </>
     );
 }

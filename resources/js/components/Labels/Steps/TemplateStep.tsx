@@ -49,8 +49,16 @@ export default function TemplateStep({ session, categories }: Props) {
         : 'sm:grid-cols-3';
 
   const handleBack = () =>
-    router.get(labels.index({ query: { session: session.id, step: 2 } }).url);
-  const handleNext = () => post(labels.selectTemplate().url, { preserveScroll: true });
+    router.get(
+      labels.index({ query: { session: session.id, step: 2 } }).url,
+      {},
+      { preserveState: true },
+    );
+  const handleNext = () =>
+    post(labels.selectTemplate().url, {
+      preserveScroll: true,
+      preserveState: true,
+    });
 
   useWizardNav({
     back: handleBack,

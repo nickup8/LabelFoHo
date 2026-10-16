@@ -1,4 +1,5 @@
 import { createInertiaApp } from '@inertiajs/react';
+import SceneTransitionHost from '@/components/Labels/SceneTransition';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme } from '@/hooks/use-appearance';
@@ -34,6 +35,7 @@ createInertiaApp({
         return (
             <TooltipProvider delayDuration={0}>
                 {app}
+                <SceneTransitionHost />
                 <Toaster />
             </TooltipProvider>
         );
