@@ -9,7 +9,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import PdfEngine from '@/components/Labels/PdfEngine';
+import type { LabelMode } from '@/components/Labels/TagLabelDocument';
 import WizardStepper, { wizardSteps } from '@/components/Labels/WizardStepper';
+import { decideModes } from '@/lib/labelFit';
 import { cn } from '@/lib/utils';
 import type {
     LabelData,
@@ -124,6 +126,7 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
     const [status, setStatus] = useState<Status>('fetching');
     const [labels, setLabels] = useState<LabelData[] | null>(null);
     const [templateType, setTemplateType] = useState<LabelTemplateType>('napkin');
+    const [modes, setModes] = useState<LabelMode[] | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [errorCardUrl, setErrorCardUrl] = useState<string | null>(null);
     const [errorDetails, setErrorDetails] = useState<string[]>([]);
@@ -154,6 +157,7 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
             setErrorCardUrl(null);
             setErrorDetails([]);
             setLabels(null);
+            setModes(null);
 
             if (objectUrlRef.current) {
                 URL.revokeObjectURL(objectUrlRef.current);
@@ -226,6 +230,53 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
             controller.abort();
         };
     }, [sessionId, fetchKey]);
+
+    // Подготовка бирок: проверяем фактическое нижнее поле dataCol и выбираем
+    // normal/compact до монтирования PdfEngine. Устаревший результат при смене
+    // данных отбрасывается флагом cancelled.
+    useEffect(() => {
+        if (!labels || templateType !== 'tag') {
+            return;
+        }
+
+        let cancelled = false;
+
+        decideModes(labels)
+            .then((result) => {
+                if (cancelled) {
+                    return;
+                }
+
+                if (result.errorSkus.length > 0) {
+                    setErrorMessage(
+                        'Часть бирок не помещается на лист 712×419 даже в компактном режиме. Проверьте данные этих артикулов:',
+                    );
+                    setErrorCardUrl(null);
+                    setErrorDetails(result.errorSkus);
+                    setStatus('error');
+
+                    return;
+                }
+
+                setModes(result.modes);
+            })
+            .catch((e) => {
+                if (cancelled) {
+                    return;
+                }
+
+                setErrorMessage(
+                    e instanceof Error ? e.message : 'Неизвестная ошибка',
+                );
+                setErrorCardUrl(null);
+                setErrorDetails([]);
+                setStatus('error');
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [labels, templateType]);
 
     const handleBlobReady = useCallback((b: Blob) => {
         if (objectUrlRef.current) {
@@ -429,14 +480,17 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
                 </div>
             )}
 
-            {labels && (status === 'compiling' || status === 'ready') && (
-                <PdfEngine
-                    labels={labels}
-                    templateType={templateType}
-                    onReady={handleBlobReady}
-                    onError={handleGenerateError}
-                />
-            )}
+            {labels &&
+                (status === 'compiling' || status === 'ready') &&
+                (templateType !== 'tag' || modes !== null) && (
+                    <PdfEngine
+                        labels={labels}
+                        templateType={templateType}
+                        modes={modes}
+                        onReady={handleBlobReady}
+                        onError={handleGenerateError}
+                    />
+                )}
         </div>
     );
 }
