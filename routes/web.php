@@ -3,11 +3,20 @@
 use App\Http\Controllers\ImporterController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\TemplateController;
+use App\Models\Importer;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [LabelController::class, 'index'])->name('index');
 Route::get('/label', function () {
-    return inertia('Label');
+    $importer = Importer::current();
+
+    return inertia('Label', [
+        'importer' => $importer ? [
+            'name' => $importer->name,
+            'legal_address' => $importer->legal_address,
+            'phone' => $importer->phone,
+        ] : null,
+    ]);
 })->name('label');
 
 Route::prefix('importers')->name('importers.')->group(function () {

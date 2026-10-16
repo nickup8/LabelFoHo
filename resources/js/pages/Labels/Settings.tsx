@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { Canvas, FabricText, Textbox, Rect, type FabricObject } from 'fabric';
+import { buildImporterText, type ImporterCard } from '@/lib/importerRequisites';
 import labels from '@/routes/labels';
 import { Move, Type, Bold as BoldIcon, RotateCcw, Save } from 'lucide-react';
 import type { LabelTemplate } from '@/types';
 
 interface Props {
   template: LabelTemplate;
+  importer: ImporterCard | null;
 }
 
 interface ElementConfig {
@@ -39,7 +41,7 @@ const DEFAULT_ELEMENTS: ElementConfig[] = [
   { key: 'tolerance', text: 'Допускается отклонение в размерах ± 1 см.', fontSize: 9.5, fontWeight: 'normal', x: 25, y: 113, width: 300, fill: '#555' },
   { key: 'expiry', text: 'Срок годности: не ограничен', fontSize: 11, fontWeight: 'normal', x: 25, y: 133, width: 300 },
   { key: 'composition', text: 'Состав: 100% ПВХ', fontSize: 11, fontWeight: 'normal', x: 25, y: 151, width: 300 },
-  { key: 'importer', text: 'Импортёр: ИП Климин П. А.\nАдрес: 358007, Россия, респ. Калмыкия, г. Элиста, пос. Салын, ул. Красная, 9\nТелефон: +7 (995) 771-27-92\nИзготовитель: Ningbo Huafu Home Goods Co., Ltd\nДата производства: Июнь 2026', fontSize: 10, fontWeight: 'normal', x: 25, y: 172, width: 300 },
+  { key: 'importer', text: '', fontSize: 10, fontWeight: 'normal', x: 25, y: 172, width: 300 },
   { key: 'eac', text: 'EAC', fontSize: 22, fontWeight: 'bold', x: 360, y: 190, textAlign: 'center' },
   { key: 'recycle', text: '03', fontSize: 14, fontWeight: 'bold', x: 367, y: 225, width: 42, textAlign: 'center' },
   { key: 'recycle_label', text: 'PVC', fontSize: 8, fontWeight: 'bold', x: 367, y: 241, width: 42, fill: '#555', textAlign: 'center' },
@@ -47,6 +49,45 @@ const DEFAULT_ELEMENTS: ElementConfig[] = [
 ];
 
 const ACTIVE_COLOR = '#2563eb';
+
+type SavedElements = Record<string, Record<string, unknown>>;
+
+/**
+ * Собирает элементы холста: текст importer всегда из карточки,
+ * сохранённые координаты/размеры/стили применяются поверх дефолтов.
+ */
+function buildElements(
+  importer: ImporterCard | null,
+  saved?: SavedElements | null,
+): ElementConfig[] {
+  const base = DEFAULT_ELEMENTS.map((def) =>
+    def.key === 'importer' ? { ...def, text: buildImporterText(importer) } : def,
+  );
+
+  if (!saved || typeof saved !== 'object' || Object.keys(saved).length === 0) {
+    return base;
+  }
+
+  return base.map((def) => {
+    const s = saved[def.key];
+
+    if (!s) {
+      return def;
+    }
+
+    return {
+      ...def,
+      x: (s.left as number) ?? def.x,
+      y: (s.top as number) ?? def.y,
+      fontSize: (s.fontSize as number) ?? def.fontSize,
+      fontWeight: (s.fontWeight as 'bold' | 'normal') ?? def.fontWeight,
+      fill: (s.fill as string) ?? def.fill,
+      textAlign: (s.textAlign as 'left' | 'center') ?? def.textAlign,
+      text: def.key === 'importer' ? def.text : ((s.text as string) ?? def.text),
+      width: (s.width as number) ?? def.width,
+    };
+  });
+}
 
 function serializeObject(obj: FabricObject, key: string) {
   return {
@@ -62,7 +103,7 @@ function serializeObject(obj: FabricObject, key: string) {
   };
 }
 
-export default function Settings({ template }: Props) {
+export default function Settings({ template, importer }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<Canvas | null>(null);
   const objectsMap = useRef<Map<string, FabricObject>>(new Map());
@@ -189,27 +230,10 @@ export default function Settings({ template }: Props) {
 
     fabricRef.current = canvas;
 
-    const saved = template.canvas_elements;
-    if (saved && typeof saved === 'object' && Object.keys(saved).length > 0) {
-      const elements: ElementConfig[] = DEFAULT_ELEMENTS.map((def) => {
-        const s = (saved as Record<string, Record<string, unknown>>)[def.key];
-        if (!s) return def;
-        return {
-          ...def,
-          x: (s.left as number) ?? def.x,
-          y: (s.top as number) ?? def.y,
-          fontSize: (s.fontSize as number) ?? def.fontSize,
-          fontWeight: (s.fontWeight as 'bold' | 'normal') ?? def.fontWeight,
-          fill: (s.fill as string) ?? def.fill,
-          textAlign: (s.textAlign as 'left' | 'center') ?? def.textAlign,
-          text: (s.text as string) ?? def.text,
-          width: (s.width as number) ?? def.width,
-        };
-      });
-      loadElements(canvas, elements);
-    } else {
-      loadElements(canvas, DEFAULT_ELEMENTS);
-    }
+    loadElements(
+      canvas,
+      buildElements(importer, template.canvas_elements as SavedElements | null),
+    );
 
     canvas.on('selection:created', (e) => {
       const obj = e.selected?.[0];
@@ -297,9 +321,9 @@ export default function Settings({ template }: Props) {
   const handleReset = useCallback(() => {
     const canvas = fabricRef.current;
     if (!canvas) return;
-    loadElements(canvas, DEFAULT_ELEMENTS);
+    loadElements(canvas, buildElements(importer, null));
     setSelected(null);
-  }, []);
+  }, [importer, loadElements]);
 
   const handleSaveTemplate = useCallback(() => {
     const canvas = fabricRef.current;

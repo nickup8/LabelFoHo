@@ -1,4 +1,10 @@
-export default function Label() {
+import { IMPORTER_MISSING_TEXT, type ImporterCard } from '@/lib/importerRequisites';
+
+interface Props {
+    importer: ImporterCard | null;
+}
+
+export default function Label({ importer }: Props) {
     return (
         <div className="flex h-screen flex-col items-center justify-center">
             <div className="h-[634px] w-[469px] border bg-white pt-7 pr-6 pb-4 pl-7">
@@ -49,21 +55,24 @@ export default function Label() {
                         <span className="font-bold">Состав: </span>
                         <span>70% ПВХ + 30% ПЭТ</span>
                     </div>
-                    <div>
-                        <span className="font-bold">Импортёр: </span>
-                        <span>ИП Климин П. А.</span>
-                    </div>
-                    <div>
-                        <span className="font-bold">Адрес: </span>
-                        <span>
-                            358007, Россия, респ. Калмыкия, г. Элиста, пос.
-                            Салын, ул. Красная, 9
-                        </span>
-                    </div>
-                    <div>
-                        <span className="font-bold">Телефон: </span>
-                        <span>+7 (995) 771-27-92</span>
-                    </div>
+                    {importer ? (
+                        <>
+                            <div>
+                                <span className="font-bold">Импортёр: </span>
+                                <span>{importer.name}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">Адрес: </span>
+                                <span>{importer.legal_address}</span>
+                            </div>
+                            <div>
+                                <span className="font-bold">Телефон: </span>
+                                <span>{importer.phone}</span>
+                            </div>
+                        </>
+                    ) : (
+                        <div>{IMPORTER_MISSING_TEXT}</div>
+                    )}
                     <div>
                         <span className="font-bold">Изготовитель: </span>
                         <span>Ningbo Huafu Home Goods Co., Ltd</span>

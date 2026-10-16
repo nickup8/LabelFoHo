@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Importer;
 use App\Models\LabelTemplate;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,8 +23,15 @@ class TemplateController extends Controller
             ]);
         }
 
+        $importer = Importer::current();
+
         return Inertia::render('Labels/Settings', [
             'template' => $template,
+            'importer' => $importer ? [
+                'name' => $importer->name,
+                'legal_address' => $importer->legal_address,
+                'phone' => $importer->phone,
+            ] : null,
         ]);
     }
 
