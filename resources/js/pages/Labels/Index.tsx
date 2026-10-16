@@ -1,11 +1,12 @@
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
+import FohoShell from '@/components/Labels/FohoShell';
 import AuditStep from '@/components/Labels/Steps/AuditStep';
 import ExportStep from '@/components/Labels/Steps/ExportStep';
 import TemplateStep from '@/components/Labels/Steps/TemplateStep';
 import {
-    templateCountFor
-    
+    templateCountFor,
+    wizardSteps,
 } from '@/components/Labels/WizardStepper';
 import type {WizardCategories} from '@/components/Labels/WizardStepper';
 import UploadStep from '@/pages/Labels/Steps/UploadStep';
@@ -80,12 +81,15 @@ export default function LabelsWizard({
         categories,
         session?.category ?? null,
     );
+    const currentCategory =
+        effectiveStep === 1 ? category : (session?.category ?? null);
+    const steps = wizardSteps(templateCountFor(categories, currentCategory));
 
     return (
         <>
             <Head title="Генерация бирок FoHo" />
 
-            <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+            <FohoShell steps={steps} currentId={effectiveStep}>
                 {effectiveStep === 1 && (
                     <UploadStep
                         categories={categories}
@@ -110,7 +114,7 @@ export default function LabelsWizard({
                         templateCount={sessionTemplateCount}
                     />
                 )}
-            </div>
+            </FohoShell>
         </>
     );
 }

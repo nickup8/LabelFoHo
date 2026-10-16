@@ -8,9 +8,9 @@ import {
     Sparkles,
 } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useWizardNav } from '@/components/Labels/FohoShell';
 import PdfEngine from '@/components/Labels/PdfEngine';
 import type { LabelMode } from '@/components/Labels/TagLabelDocument';
-import WizardStepper, { wizardSteps } from '@/components/Labels/WizardStepper';
 import { decideModes } from '@/lib/labelFit';
 import { cn } from '@/lib/utils';
 import type {
@@ -90,7 +90,7 @@ function FoHoMagic({
                 </defs>
             </svg>
 
-            <p className="mb-6 text-[10px] font-semibold tracking-[0.25em] text-[var(--color-muted)]/50 uppercase dark:text-zinc-500/50">
+            <p className="mb-6 text-[10px] font-semibold tracking-[0.25em] text-[var(--color-muted)]/50 uppercase">
                 МАГИЯ FOHO
             </p>
 
@@ -113,7 +113,7 @@ function FoHoMagic({
             <div className="min-h-[1.5rem] animate-pulse">
                 <p
                     key={msgIndex}
-                    className="max-w-xs animate-[fadeIn_0.3s_ease-out] text-center text-sm text-[var(--color-muted)] dark:text-zinc-400"
+                    className="max-w-xs animate-[fadeIn_0.3s_ease-out] text-center text-sm text-[var(--color-muted)]"
                 >
                     {messages[msgIndex]}
                 </p>
@@ -133,11 +133,18 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
     const [fetchKey, setFetchKey] = useState(0);
     const objectUrlRef = useRef<string | null>(null);
 
-    const steps = wizardSteps(templateCount);
     const backStep = templateCount === 1 ? 2 : 3;
     const backLabel = templateCount === 1 ? 'Назад к аудиту' : 'Назад к шаблону';
 
     const fileName = `foho_labels_${sessionId}.pdf`;
+
+    const handleBack = () =>
+        router.get(`/labels?session=${sessionId}&step=${backStep}`);
+
+    useWizardNav({
+        back: status === 'error' ? undefined : handleBack,
+        backLabel,
+    });
 
     useEffect(() => {
         return () => {
@@ -318,61 +325,33 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
                 }
             `}</style>
 
-            <WizardStepper steps={steps} currentId={4} />
-
             <div className="flex items-center gap-3">
                 <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--color-accent)]/10">
                     <FileText className="size-5 text-[var(--color-accent)]" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-[var(--color-fg)] dark:text-zinc-100">
-                        {status === 'ready' ? 'Этикетки готовы' : 'Экспорт PDF'}
-                    </h1>
-                    <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
+                    <p className="text-sm text-[var(--color-muted)]">
                         {statusSubtitle}
                     </p>
                 </div>
             </div>
 
             {(status === 'fetching' || status === 'compiling') && (
-                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] dark:border-zinc-800 dark:bg-zinc-900/50">
+                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)]">
                     <FoHoMagic status={status} />
-                    <div className="pb-6 text-center">
-                        <button
-                            type="button"
-                            onClick={() => router.get(`/labels?session=${sessionId}&step=${backStep}`)}
-                            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)] dark:text-zinc-400 transition-colors hover:text-[var(--color-fg)] dark:hover:text-zinc-200"
-                        >
-                            <ArrowLeft className="size-4" />
-                            {backLabel}
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {status === 'ready' && (
-                <div className="pb-2 text-center">
-                    <button
-                        type="button"
-                        onClick={() => router.get(`/labels?session=${sessionId}&step=${backStep}`)}
-                        className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-muted)] dark:text-zinc-400 transition-colors hover:text-[var(--color-fg)] dark:hover:text-zinc-200"
-                    >
-                        <ArrowLeft className="size-4" />
-                        {backLabel}
-                    </button>
                 </div>
             )}
 
             {status === 'ready' && objectUrlRef.current && (
                 <div className="animate-[fadeScaleIn_0.5s_ease-out] space-y-6">
                     <div className="text-center">
-                        <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-500 dark:text-green-400" />
-                        <h2 className="text-3xl font-bold text-[var(--color-fg)] dark:text-zinc-100">
+                        <CheckCircle2 className="mx-auto mb-4 h-16 w-16 text-green-500" />
+                        <h2 className="text-3xl font-bold text-[var(--color-fg)]">
                             PDF скомпилирован
                         </h2>
-                        <p className="mt-2 text-base text-[var(--color-muted)] dark:text-zinc-400">
+                        <p className="mt-2 text-base text-[var(--color-muted)]">
                             Обработано{' '}
-                            <span className="font-semibold text-[var(--color-fg)] dark:text-zinc-200">
+                            <span className="font-semibold text-[var(--color-fg)]">
                                 {count}
                             </span>{' '}
                             {count === 1
@@ -383,16 +362,16 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
                         </p>
                     </div>
 
-                    <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-[var(--color-surface)] p-6 shadow-sm sm:flex-row dark:border-zinc-800 dark:bg-zinc-900">
+                    <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-[var(--color-surface)] p-6 shadow-sm sm:flex-row">
                         <div className="flex items-center gap-4">
-                            <div className="rounded-xl bg-red-50 p-3 text-red-500 dark:bg-red-950/30 dark:text-red-400">
+                            <div className="rounded-xl bg-red-50 p-3 text-red-500">
                                 <FileText className="size-6" />
                             </div>
                             <div>
-                                <h3 className="font-mono text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                                <h3 className="font-mono text-sm font-semibold text-zinc-700">
                                     {fileName}
                                 </h3>
-                                <p className="text-xs text-[var(--color-muted)] dark:text-zinc-400">
+                                <p className="text-xs text-[var(--color-muted)]">
                                     PDF • {count}{' '}
                                     {count === 1 ? 'страница' : 'страниц'}
                                 </p>
@@ -425,19 +404,19 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
             )}
 
             {status === 'error' && (
-                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-8 dark:border-zinc-800 dark:bg-zinc-900/50">
+                <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-8">
                     <div className="flex flex-col items-center gap-4 py-8 text-center">
                         <AlertCircle className="size-12 text-red-500" />
                         <div>
-                            <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            <h2 className="text-lg font-semibold text-red-600">
                                 Не удалось сформировать PDF
                             </h2>
-                            <p className="mt-1 max-w-md text-sm text-[var(--color-muted)] dark:text-zinc-400">
+                            <p className="mt-1 max-w-md text-sm text-[var(--color-muted)]">
                                 {errorMessage}
                             </p>
                         </div>
                         {errorDetails.length > 0 && !errorCardUrl && (
-                            <ul className="max-w-md space-y-1 text-left text-xs text-[var(--color-muted)] dark:text-zinc-400">
+                            <ul className="max-w-md space-y-1 text-left text-xs text-[var(--color-muted)]">
                                 {errorDetails.map((detail) => (
                                     <li key={detail}>• {detail}</li>
                                 ))}
@@ -468,7 +447,7 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
                                 className={cn(
                                     'inline-flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-all hover:opacity-90',
                                     errorCardUrl || errorDetails.length > 0
-                                        ? 'border border-zinc-300 bg-background text-[var(--color-fg)] dark:border-zinc-600 dark:text-zinc-300'
+                                        ? 'border border-zinc-300 bg-[var(--color-bg)] text-[var(--color-fg)]'
                                         : 'bg-[var(--color-accent)] text-white',
                                 )}
                             >

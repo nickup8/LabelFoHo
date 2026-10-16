@@ -1,11 +1,8 @@
 import { router } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Phone, XCircle } from 'lucide-react';
 import { useState, useMemo } from 'react';
-import WizardStepper, {
-  templateCountFor,
-  wizardSteps
-  
-} from '@/components/Labels/WizardStepper';
+import { useWizardNav } from '@/components/Labels/FohoShell';
+import { templateCountFor } from '@/components/Labels/WizardStepper';
 import type {WizardCategories} from '@/components/Labels/WizardStepper';
 import { cn, formatSize } from '@/lib/utils';
 import labels from '@/routes/labels';
@@ -61,7 +58,6 @@ export default function AuditStep({ session, importer, categories }: Props) {
   const invalidCount = rows.filter((r) => !r.is_valid).length;
 
   const templateCount = templateCountFor(categories, session.category);
-  const steps = wizardSteps(templateCount);
 
   const [filter, setFilter] = useState<FilterMode>('all');
   const [page, setPage] = useState(1);
@@ -100,6 +96,12 @@ export default function AuditStep({ session, importer, categories }: Props) {
     );
   };
 
+  useWizardNav({
+    back: handleBack,
+    next: handleNext,
+    nextDisabled: invalidCount > 0,
+  });
+
   const switchFilter = (f: FilterMode) => {
     setFilter(f);
     setPage(1);
@@ -117,40 +119,35 @@ export default function AuditStep({ session, importer, categories }: Props) {
   return (
     <div className="space-y-10">
 
-      <WizardStepper steps={steps} currentId={2} />
-
       {/* Heading + Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[var(--color-fg)] dark:text-zinc-100">
-            Аудит данных
-          </h1>
-          <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
+          <p className="text-sm text-[var(--color-muted)]">
             Результаты автоматической проверки файла{' '}
-            <span className="font-medium text-[var(--color-fg)] dark:text-zinc-100">
+            <span className="font-medium text-[var(--color-fg)]">
               {session.original_filename}
             </span>
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="bg-[var(--color-surface)] dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 flex items-center gap-3">
+          <div className="bg-[var(--color-surface)] border border-zinc-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
             <div className="size-2 rounded-full bg-green-500" />
             <div>
-              <p className="text-xs text-[var(--color-muted)] dark:text-zinc-400 font-medium">
+              <p className="text-xs text-[var(--color-muted)] font-medium">
                 Успешно
               </p>
-              <p className="text-base font-bold text-[var(--color-fg)] dark:text-zinc-100 mt-0.5">
+              <p className="text-base font-bold text-[var(--color-fg)] mt-0.5">
                 {validCount}
               </p>
             </div>
           </div>
-          <div className="bg-[var(--color-surface)] dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 flex items-center gap-3">
+          <div className="bg-[var(--color-surface)] border border-zinc-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
             <div className="size-2 rounded-full bg-red-500" />
             <div>
-              <p className="text-xs text-[var(--color-muted)] dark:text-zinc-400 font-medium">
+              <p className="text-xs text-[var(--color-muted)] font-medium">
                 Ошибки
               </p>
-              <p className="text-base font-bold text-[var(--color-fg)] dark:text-zinc-100 mt-0.5">
+              <p className="text-base font-bold text-[var(--color-fg)] mt-0.5">
                 {invalidCount}
               </p>
             </div>
@@ -159,43 +156,43 @@ export default function AuditStep({ session, importer, categories }: Props) {
       </div>
 
       {/* Shared importer card */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900 p-5">
-        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)] dark:text-zinc-100">
+      <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-5">
+        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)]">
           Импортёр
         </h2>
-        <p className="mb-3 text-xs text-[var(--color-muted)] dark:text-zinc-400">
+        <p className="mb-3 text-xs text-[var(--color-muted)]">
           Единая карточка реквизитов применяется ко всем строкам и сессиям.
           Без заполненной карточки экспорт PDF заблокирован.
         </p>
 
-        <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-800/60">
+        <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-zinc-50 p-4">
           {importer ? (
-            <div className="space-y-1.5 text-sm text-[var(--color-fg)] dark:text-zinc-100">
+            <div className="space-y-1.5 text-sm text-[var(--color-fg)]">
               <p className="font-medium break-words">
                 {importer.name}
               </p>
-              <p className="break-words text-xs text-[var(--color-muted)] dark:text-zinc-400">
+              <p className="break-words text-xs text-[var(--color-muted)]">
                 {importer.legal_address}
               </p>
-              <p className="flex items-center gap-1.5 text-xs text-[var(--color-muted)] dark:text-zinc-400">
+              <p className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
                 <Phone className="size-3.5 shrink-0" />
                 {importer.phone}
               </p>
             </div>
           ) : (
-            <p className="text-xs text-[var(--color-muted)] dark:text-zinc-400">
+            <p className="text-xs text-[var(--color-muted)]">
               Карточка импортёра не заполнена
             </p>
           )}
         </div>
 
         {!importerReady && (
-          <p className="mt-4 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+          <p className="mt-4 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
             <AlertTriangle className="size-3.5 shrink-0" />
             Карточка импортёра не заполнена — экспорт PDF заблокирован.{' '}
             <a
               href="/importers"
-              className="font-semibold underline underline-offset-2 hover:text-red-700 dark:hover:text-red-300"
+              className="font-semibold underline underline-offset-2 hover:text-red-700"
             >
               Заполнить карточку
             </a>
@@ -204,7 +201,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl border border-zinc-200/50 dark:border-zinc-700/50 w-fit">
+      <div className="flex items-center gap-1.5 bg-zinc-100 p-1 rounded-xl border border-zinc-200/50 w-fit">
         {(['all', 'errors', 'success'] as const).map((f) => (
           <button
             key={f}
@@ -212,8 +209,8 @@ export default function AuditStep({ session, importer, categories }: Props) {
             className={cn(
               'px-3 py-1.5 text-xs font-medium rounded-lg transition-all',
               filter === f
-                ? 'bg-white dark:bg-zinc-700 text-[var(--color-fg)] dark:text-white shadow-sm'
-                : 'text-[var(--color-muted)] dark:text-zinc-400 hover:text-[var(--color-fg)] dark:hover:text-white',
+                ? 'bg-white text-[var(--color-fg)] shadow-sm'
+                : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]',
             )}
           >
             {f === 'all' && `Все строки (${total})`}
@@ -224,11 +221,11 @@ export default function AuditStep({ session, importer, categories }: Props) {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-[var(--color-surface)] dark:bg-zinc-900 overflow-hidden">
+      <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-zinc-50 dark:bg-zinc-800/40 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-[var(--color-muted)] dark:text-zinc-400 uppercase tracking-wider">
+              <tr className="bg-zinc-50 border-b border-zinc-200 text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider">
                 <th className="py-3 px-4 w-16">Строка</th>
                 <th className="py-3 px-4">Артикул / Название</th>
                 <th className="py-3 px-4">Штрихкод</th>
@@ -237,7 +234,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
                 <th className="py-3 px-4 text-right">Статус</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+            <tbody className="divide-y divide-zinc-100">
               {paginatedRows.map((entry) => {
                 const d = entry.data;
 
@@ -247,20 +244,20 @@ export default function AuditStep({ session, importer, categories }: Props) {
                     className={cn(
                       'transition-colors',
                       entry.is_valid
-                        ? 'hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30'
-                        : 'bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/60 dark:hover:bg-red-950/20',
+                        ? 'hover:bg-zinc-50/50'
+                        : 'bg-red-50/30 hover:bg-red-50/60',
                     )}
                   >
-                    <td className="py-3.5 px-4 font-mono text-xs text-[var(--color-muted)] dark:text-zinc-400">
+                    <td className="py-3.5 px-4 font-mono text-xs text-[var(--color-muted)]">
                       {entry.row}
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="font-mono text-xs text-[var(--color-fg)] dark:text-zinc-100">
+                      <div className="font-mono text-xs text-[var(--color-fg)]">
                         {d.supplier_article || (
                           <span className="italic text-red-500">— пусто —</span>
                         )}
                       </div>
-                      <div className="text-xs text-[var(--color-muted)] dark:text-zinc-400 mt-0.5">
+                      <div className="text-xs text-[var(--color-muted)] mt-0.5">
                         {d.product_name || (
                           <span className="italic text-red-500">— пусто —</span>
                         )}
@@ -272,8 +269,8 @@ export default function AuditStep({ session, importer, categories }: Props) {
                           className={cn(
                             'font-mono text-xs',
                             hasBarcodeError(entry)
-                              ? 'text-red-700 dark:text-red-400'
-                              : 'text-[var(--color-fg)] dark:text-zinc-100',
+                              ? 'text-red-700'
+                              : 'text-[var(--color-fg)]',
                           )}
                         >
                           {d.barcode}
@@ -301,19 +298,19 @@ export default function AuditStep({ session, importer, categories }: Props) {
                           ))}
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="text-xs text-[var(--color-fg)] dark:text-zinc-100">
+                      <div className="text-xs text-[var(--color-fg)]">
                         {d.factory_name || (
                           <span className="italic text-red-500">— пусто —</span>
                         )}
                       </div>
                     </td>
                     <td className="py-3.5 px-4">
-                      <div className="text-xs text-[var(--color-fg)] dark:text-zinc-100">
+                      <div className="text-xs text-[var(--color-fg)]">
                         {d.size ? formatSize(d.size) : (
                           <span className="italic text-red-500">— пусто —</span>
                         )}
                       </div>
-                      <div className="text-[11px] text-[var(--color-muted)] dark:text-zinc-400 mt-0.5">
+                      <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
                         {session.category === 'mats'
                           ? d.composition_raw || d.composition || '—'
                           : d.composition || '—'}
@@ -321,12 +318,12 @@ export default function AuditStep({ session, importer, categories }: Props) {
                     </td>
                     <td className="py-3.5 px-4 text-right">
                       {entry.is_valid ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 rounded-md">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-md">
                           <CheckCircle2 className="size-3" />
                           Готов
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 rounded-md">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-md">
                           <AlertTriangle className="size-3" />
                           {entry.errors.length}
                         </span>
@@ -340,8 +337,8 @@ export default function AuditStep({ session, importer, categories }: Props) {
         </div>
 
         {/* Pagination */}
-        <div className="bg-zinc-50 dark:bg-zinc-800/30 border-t border-zinc-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-          <div className="text-xs text-[var(--color-muted)] dark:text-zinc-400">
+        <div className="bg-zinc-50 border-t border-zinc-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+          <div className="text-xs text-[var(--color-muted)]">
             Строки с {from} по {to} из {filteredRows.length}
           </div>
           <div className="flex items-center gap-2">
@@ -351,7 +348,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="text-xs bg-transparent border border-zinc-200 dark:border-zinc-700 rounded-lg px-2 py-1 text-[var(--color-muted)] dark:text-zinc-400 outline-none"
+              className="text-xs bg-transparent border border-zinc-200 rounded-lg px-2 py-1 text-[var(--color-muted)] outline-none"
             >
               {PAGE_SIZES.map((s) => (
                 <option key={s} value={s}>
@@ -364,7 +361,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="p-1.5 rounded-lg text-[var(--color-muted)] dark:text-zinc-400 disabled:text-zinc-300 dark:disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                className="p-1.5 rounded-lg text-[var(--color-muted)] disabled:text-zinc-300 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
               >
                 <ArrowLeft className="size-4" />
               </button>
@@ -377,7 +374,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
                     'w-8 h-8 rounded-lg text-xs font-medium transition-all',
                     p === page
                       ? 'bg-[var(--color-accent)] text-white shadow-sm'
-                      : 'text-[var(--color-fg)] dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700',
+                      : 'text-[var(--color-fg)] hover:bg-zinc-100',
                   )}
                 >
                   {p}
@@ -387,7 +384,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-1.5 rounded-lg text-[var(--color-muted)] dark:text-zinc-400 disabled:text-zinc-300 dark:disabled:text-zinc-600 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+                className="p-1.5 rounded-lg text-[var(--color-muted)] disabled:text-zinc-300 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
               >
                 <ArrowRight className="size-4" />
               </button>
@@ -399,7 +396,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
       {/* Error detail section */}
       {invalidCount > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">
+          <h3 className="text-sm font-semibold text-red-600">
             Детали ошибок
           </h3>
           <div className="space-y-1.5">
@@ -408,9 +405,9 @@ export default function AuditStep({ session, importer, categories }: Props) {
               .map((entry) => (
                 <div
                   key={entry.row}
-                  className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50/50 dark:bg-red-950/10 px-4 py-2.5 text-sm"
+                  className="rounded-lg border border-red-200 bg-red-50/50 px-4 py-2.5 text-sm"
                 >
-                  <p className="mb-1 text-xs font-medium text-red-700 dark:text-red-400">
+                  <p className="mb-1 text-xs font-medium text-red-700">
                     Строка #{entry.row}
                     {entry.data.product_name && ` · ${entry.data.product_name}`}
                   </p>
@@ -418,7 +415,7 @@ export default function AuditStep({ session, importer, categories }: Props) {
                     {entry.errors.map((err, i) => (
                       <li
                         key={i}
-                        className="flex items-start gap-1.5 text-xs text-red-600 dark:text-red-300"
+                        className="flex items-start gap-1.5 text-xs text-red-600"
                       >
                         <span className="mt-0.5 block size-1 shrink-0 rounded-full bg-red-500" />
                         {err}
@@ -430,35 +427,6 @@ export default function AuditStep({ session, importer, categories }: Props) {
           </div>
         </div>
       )}
-
-      {/* Navigation */}
-      <div className="flex flex-col items-end gap-2">
-        <div className="flex w-full items-center justify-between">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 px-6 py-2.5 text-sm font-medium text-[var(--color-fg)] dark:text-zinc-300 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800"
-          >
-            <ArrowLeft className="size-4" />
-            Назад
-          </button>
-
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={invalidCount > 0}
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg px-6 py-2.5 text-sm font-medium shadow-sm transition-all',
-              invalidCount === 0
-                ? 'bg-[var(--color-accent)] text-white hover:opacity-90'
-                : 'bg-zinc-200 dark:bg-zinc-800 text-[var(--color-muted)] dark:text-zinc-500 cursor-not-allowed opacity-50',
-            )}
-          >
-            Далее
-            <ArrowRight className="size-4" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
