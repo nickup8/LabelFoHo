@@ -186,24 +186,40 @@ const PAGE_BY_STEP: Record<number, WizardPage> = {
 interface FohoShellProps {
     steps: WizardStep[];
     currentId: number;
+    /**
+     * Fires at the transition's swap moment so the page can switch to the
+     * target step locally: the visual swap must not wait for the Inertia
+     * response (motion.js `change()` is synchronous in the package).
+     */
+    onSceneSwap?: (stepId: number) => void;
     children: ReactNode;
 }
 
 export default function FohoShell({
     steps,
     currentId,
+    onSceneSwap,
     children,
 }: FohoShellProps) {
     return (
         <WizardNavProvider>
-            <ShellView steps={steps} currentId={currentId}>
+            <ShellView
+                steps={steps}
+                currentId={currentId}
+                onSceneSwap={onSceneSwap}
+            >
                 {children}
             </ShellView>
         </WizardNavProvider>
     );
 }
 
-function ShellView({ steps, currentId, children }: FohoShellProps) {
+function ShellView({
+    steps,
+    currentId,
+    onSceneSwap,
+    children,
+}: FohoShellProps) {
     const nav = useContext(WizardNavContext);
 
     const [busy, setBusy] = useState(false);
@@ -231,6 +247,7 @@ function ShellView({ steps, currentId, children }: FohoShellProps) {
                 number: `0${index + 1}`,
                 word: request.label ?? steps[index].label,
                 onSwap: () => {
+                    onSceneSwap?.(request.stepId);
                     request.onSwap?.();
                     setHold(null);
                 },
@@ -247,7 +264,7 @@ function ShellView({ steps, currentId, children }: FohoShellProps) {
 
             return started;
         },
-        [steps, children, currentId],
+        [steps, children, currentId, onSceneSwap],
     );
 
     const scene = useMemo<SceneApi>(() => ({ run: runScene }), [runScene]);

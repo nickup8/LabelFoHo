@@ -1,5 +1,5 @@
 import { Head } from '@inertiajs/react';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import FohoShell from '@/components/Labels/FohoShell';
 import AuditStep from '@/components/Labels/Steps/AuditStep';
 import ExportStep from '@/components/Labels/Steps/ExportStep';
@@ -71,6 +71,21 @@ export default function LabelsWizard({
         readWizardCategory,
     );
 
+    // New Inertia props always win over the optimistic export step: clear it
+    // as soon as the server responds (or history props are restored).
+    useEffect(() => {
+        setLocalStep(null);
+    }, [step, session]);
+
+    // The generation scene swaps in under the closing transition layers at
+    // the motion.js 520 ms mark; the wizard POST may still be in flight, so
+    // the export step is shown locally instead of waiting for Inertia.
+    const handleSceneSwap = useCallback((stepId: number) => {
+        if (stepId === 4) {
+            setLocalStep(4);
+        }
+    }, []);
+
     const setCategory = (value: string) => {
         writeWizardCategory(value);
         setCategoryState(value);
@@ -89,7 +104,11 @@ export default function LabelsWizard({
         <>
             <Head title="Генерация бирок FoHo" />
 
-            <FohoShell steps={steps} currentId={effectiveStep}>
+            <FohoShell
+                steps={steps}
+                currentId={effectiveStep}
+                onSceneSwap={handleSceneSwap}
+            >
                 {effectiveStep === 1 && (
                     <UploadStep
                         categories={categories}
@@ -112,6 +131,7 @@ export default function LabelsWizard({
                     <ExportStep
                         sessionId={session.id}
                         templateCount={sessionTemplateCount}
+                        awaitingServer={step !== 4}
                     />
                 )}
             </FohoShell>

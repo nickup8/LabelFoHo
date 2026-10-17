@@ -22,6 +22,14 @@ import type {
 interface Props {
     sessionId: string;
     templateCount: number | null;
+    /**
+     * True while the export step is shown optimistically (under the closing
+     * transition layers) but the wizard request that saves the template has
+     * not answered yet. The generation scene is already on screen; the PDF
+     * request waits for that confirmation instead of racing it, so it never
+     * compiles with a stale template.
+     */
+    awaitingServer?: boolean;
 }
 
 type Status = 'fetching' | 'compiling' | 'ready' | 'error';
@@ -108,7 +116,11 @@ function GenerationCaption({ index }: { index: number }): ReactNode {
     );
 }
 
-export default function ExportStep({ sessionId, templateCount }: Props) {
+export default function ExportStep({
+    sessionId,
+    templateCount,
+    awaitingServer = false,
+}: Props) {
     const [status, setStatus] = useState<Status>('fetching');
     const [labelsData, setLabelsData] = useState<LabelData[] | null>(null);
     const [templateType, setTemplateType] =
@@ -177,6 +189,10 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
     }, []);
 
     useEffect(() => {
+        if (awaitingServer) {
+            return;
+        }
+
         let cancelled = false;
         const controller = new AbortController();
 
@@ -259,7 +275,7 @@ export default function ExportStep({ sessionId, templateCount }: Props) {
             cancelled = true;
             controller.abort();
         };
-    }, [sessionId, fetchKey]);
+    }, [sessionId, fetchKey, awaitingServer]);
 
     // Подготовка бирок: проверяем фактическое нижнее поле dataCol и выбираем
     // normal/compact до монтирования PdfEngine. Устаревший результат при смене
