@@ -160,7 +160,7 @@ export default function UploadStep({
 
     const handleFileSelect = useCallback(
         (file: File | null) => {
-            if (!file) {
+            if (!file || processing) {
                 return;
             }
 
@@ -174,9 +174,27 @@ export default function UploadStep({
                 return;
             }
 
+            setDismissedSessionFile(false);
             setData('file', file);
+            post(labels.upload().url, {
+                preserveScroll: true,
+                preserveState: true,
+                onError: () => setData('file', null),
+                onSuccess: () => {
+                    // Stay on the upload step: the file card and the real
+                    // row count come from the refreshed session props.
+                    setData('file', null);
+                },
+            });
         },
-        [setData, setError, validateFile],
+        [
+            processing,
+            post,
+            setData,
+            setError,
+            setDismissedSessionFile,
+            validateFile,
+        ],
     );
 
     const handleDrop = useCallback(
@@ -262,18 +280,8 @@ export default function UploadStep({
             return;
         }
 
-        if (data.file) {
-            post(labels.upload().url, {
-                preserveScroll: true,
-                preserveState: true,
-                onError: () => setData('file', null),
-            });
-
-            return;
-        }
-
-        // Returning from the audit keeps the parsed session: «Далее» continues
-        // to it instead of demanding the file a second time.
+        // The upload already ran on file select; «Далее» only opens the
+        // audit of the saved session.
         if (sessionFile) {
             router.get(
                 labels.index({
@@ -283,7 +291,7 @@ export default function UploadStep({
                 { preserveState: true },
             );
         }
-    }, [data.category, data.file, processing, sessionFile, post, setError]);
+    }, [data.category, processing, sessionFile, setError]);
 
     const handleRemoveFile = useCallback(
         (e: React.MouseEvent) => {
@@ -299,8 +307,7 @@ export default function UploadStep({
         [data.file, setData, setError],
     );
 
-    const canProceed =
-        (!!data.file || !!sessionFile) && !!data.category && !processing;
+    const canProceed = !!sessionFile && !!data.category && !processing;
 
     useWizardNav({ next: handleSubmit, nextDisabled: !canProceed });
 

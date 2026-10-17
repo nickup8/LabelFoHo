@@ -114,7 +114,7 @@ class LabelController extends Controller
 
         return redirect()->route('labels.index', [
             'session' => $session->id,
-            'step' => 2,
+            'step' => 1,
         ]);
     }
 
