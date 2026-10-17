@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import {
     createContext,
     useCallback,
@@ -337,6 +337,29 @@ function ShellView({
         runForVisit(target?.id, nav.next);
     };
 
+    // Package behaviour: completed steps in the stepper are clickable and
+    // jump back through the wizard URL (session is kept in the query).
+    const handleStepSelect = (targetId: number) => {
+        if (busy) {
+            return;
+        }
+
+        const url = new URL(window.location.href);
+        const sessionId = url.searchParams.get('session');
+
+        if (!sessionId) {
+            return;
+        }
+
+        runScene({ stepId: targetId, hold: true });
+
+        router.get(
+            `/labels?session=${encodeURIComponent(sessionId)}&step=${targetId}`,
+            {},
+            { preserveState: true },
+        );
+    };
+
     return (
         <GenerationContext.Provider value={setGenerating}>
             <ReadyContext.Provider value={setReady}>
@@ -388,6 +411,7 @@ function ShellView({
                                 <WizardStepper
                                     steps={steps}
                                     currentId={displayId}
+                                    onStepSelect={handleStepSelect}
                                 />
                                 <div className="stage">{view}</div>
                                 <div className="footer">

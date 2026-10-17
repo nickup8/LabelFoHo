@@ -48,9 +48,15 @@ export function wizardSteps(templateCount: number | null): WizardStep[] {
 interface WizardStepperProps {
     steps: WizardStep[];
     currentId: number;
+    /** Package behaviour: completed steps are buttons that jump back. */
+    onStepSelect?: (stepId: number) => void;
 }
 
-export default function WizardStepper({ steps, currentId }: WizardStepperProps) {
+export default function WizardStepper({
+    steps,
+    currentId,
+    onStepSelect,
+}: WizardStepperProps) {
     const activeIndex = steps.findIndex((step) => step.id === currentId);
 
     return (
@@ -72,7 +78,15 @@ export default function WizardStepper({ steps, currentId }: WizardStepperProps) 
                         )}
                         aria-current={isActive ? 'step' : undefined}
                     >
-                        <button type="button" disabled>
+                        <button
+                            type="button"
+                            disabled={!isCompleted}
+                            onClick={
+                                isCompleted
+                                    ? () => onStepSelect?.(step.id)
+                                    : undefined
+                            }
+                        >
                             <span className="step-number">
                                 {isCompleted ? '✓' : index + 1}
                             </span>

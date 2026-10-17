@@ -36,6 +36,8 @@ const docIcon = (
 interface SessionRef {
     id: string;
     category: string | null;
+    original_filename?: string;
+    validation_results?: Array<{ row: number }>;
 }
 
 interface Props {
@@ -54,6 +56,24 @@ function fileSizeLabel(bytes: number): string {
     return `${(bytes / 1024).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} КБ`;
 }
 
+function pluralize(
+    count: number,
+    forms: [one: string, few: string, many: string],
+): string {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+
+    if (mod10 === 1 && mod100 !== 11) {
+        return forms[0];
+    }
+
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return forms[1];
+    }
+
+    return forms[2];
+}
+
 export default function UploadStep({
     categories,
     category,
@@ -63,6 +83,7 @@ export default function UploadStep({
     const inputRef = useRef<HTMLInputElement>(null);
     const categoriesRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [dismissedSessionFile, setDismissedSessionFile] = useState(false);
 
     const { data, setData, post, processing, errors, setError } =
         useForm<UploadForm>({
@@ -90,6 +111,7 @@ export default function UploadStep({
         (value: string) => {
             setError('category', '');
             setData('category', value);
+            setDismissedSessionFile(false);
             onCategoryChange(value);
 
             if (session && session.category && session.category !== value) {
@@ -213,6 +235,22 @@ export default function UploadStep({
         [handleDropzoneClick],
     );
 
+    // The package keeps the chosen file on the way back from the audit; the
+    // real app restores the same card from the server session instead of a
+    // client-side File object (size is not stored, so only name and the real
+    // parsed row count are shown). changeCategory nulls validation_results, so
+    // a parsed-session check also blocks continuing on a stale category.
+    const sessionFile =
+        !data.file &&
+        !dismissedSessionFile &&
+        session &&
+        session.category === data.category &&
+        session.original_filename &&
+        (session.validation_results?.length ?? 0) > 0
+            ? session
+            : null;
+    const sessionRowCount = sessionFile?.validation_results?.length ?? 0;
+
     const handleSubmit = useCallback(() => {
         if (!data.category) {
             setError('category', 'Сначала выберите категорию');
@@ -220,27 +258,49 @@ export default function UploadStep({
             return;
         }
 
-        if (!data.file || processing) {
+        if (processing) {
             return;
         }
 
-        post(labels.upload().url, {
-            preserveScroll: true,
-            preserveState: true,
-            onError: () => setData('file', null),
-        });
-    }, [data.category, data.file, processing, post, setData, setError]);
+        if (data.file) {
+            post(labels.upload().url, {
+                preserveScroll: true,
+                preserveState: true,
+                onError: () => setData('file', null),
+            });
+
+            return;
+        }
+
+        // Returning from the audit keeps the parsed session: «Далее» continues
+        // to it instead of demanding the file a second time.
+        if (sessionFile) {
+            router.get(
+                labels.index({
+                    query: { session: sessionFile.id, step: 2 },
+                }).url,
+                {},
+                { preserveState: true },
+            );
+        }
+    }, [data.category, data.file, processing, sessionFile, post, setError]);
 
     const handleRemoveFile = useCallback(
         (e: React.MouseEvent) => {
             e.stopPropagation();
-            setData('file', null);
-            setError('file', '');
+
+            if (data.file) {
+                setData('file', null);
+                setError('file', '');
+            } else {
+                setDismissedSessionFile(true);
+            }
         },
-        [setData, setError],
+        [data.file, setData, setError],
     );
 
-    const canProceed = !!data.file && !!data.category && !processing;
+    const canProceed =
+        (!!data.file || !!sessionFile) && !!data.category && !processing;
 
     useWizardNav({ next: handleSubmit, nextDisabled: !canProceed });
 
@@ -250,7 +310,7 @@ export default function UploadStep({
     const errorMessage = errors.category || errors.file;
     const dropState = !data.category
         ? 'disabled'
-        : !data.file && !processing
+        : !data.file && !sessionFile && !processing
           ? 'awaiting-file'
           : '';
 
@@ -342,6 +402,44 @@ export default function UploadStep({
                             Удалить
                         </button>
                     </div>
+                ) : sessionFile ? (
+                    <>
+                        <div className="file-card">
+                            <div className="file-icon">{docIcon}</div>
+                            <div className="file-info">
+                                <div className="file-name">
+                                    {sessionFile.original_filename}
+                                </div>
+                                <div className="file-meta">
+                                    {categoryDefinition?.label ??
+                                        sessionFile.category}
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="remove"
+                                onClick={handleRemoveFile}
+                            >
+                                Удалить
+                            </button>
+                        </div>
+                        <div className="success-note">
+                            <span className="small-check" aria-hidden="true">
+                                ✓
+                            </span>{' '}
+                            {sessionRowCount}{' '}
+                            {pluralize(sessionRowCount, [
+                                'строка',
+                                'строки',
+                                'строк',
+                            ])}{' '}
+                            {pluralize(sessionRowCount, [
+                                'добавлена',
+                                'добавлены',
+                                'добавлено',
+                            ])}
+                        </div>
+                    </>
                 ) : !data.category ? (
                     <h2 id="category-prompt">Сначала выберите категорию</h2>
                 ) : (
