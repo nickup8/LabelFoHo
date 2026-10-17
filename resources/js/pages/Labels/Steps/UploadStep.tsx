@@ -179,7 +179,7 @@ export default function UploadStep({
             post(labels.upload().url, {
                 preserveScroll: true,
                 preserveState: true,
-                progress: false,
+                showProgress: false,
                 onError: () => setData('file', null),
                 onSuccess: () => {
                     // Stay on the upload step: the file card and the real
