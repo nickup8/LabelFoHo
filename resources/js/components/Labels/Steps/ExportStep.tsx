@@ -8,10 +8,8 @@ import {
     useSceneTransition,
     useWizardNav,
 } from '@/components/Labels/FohoShell';
-import PdfEngine from '@/components/Labels/PdfEngine';
-import type { LabelMode } from '@/components/Labels/TagLabelDocument';
 import VolumeScene from '@/components/Labels/VolumeScene';
-import { decideModes } from '@/lib/labelFit';
+import { runLabelPdfJob } from '@/lib/labelPdfWorkerClient';
 import labels from '@/routes/labels';
 import type {
     LabelData,
@@ -125,7 +123,6 @@ export default function ExportStep({
     const [labelsData, setLabelsData] = useState<LabelData[] | null>(null);
     const [templateType, setTemplateType] =
         useState<LabelTemplateType>('napkin');
-    const [modes, setModes] = useState<LabelMode[] | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [errorCardUrl, setErrorCardUrl] = useState<string | null>(null);
     const [errorDetails, setErrorDetails] = useState<string[]>([]);
@@ -202,7 +199,6 @@ export default function ExportStep({
             setErrorCardUrl(null);
             setErrorDetails([]);
             setLabelsData(null);
-            setModes(null);
 
             if (objectUrlRef.current) {
                 URL.revokeObjectURL(objectUrlRef.current);
@@ -277,53 +273,6 @@ export default function ExportStep({
         };
     }, [sessionId, fetchKey, awaitingServer]);
 
-    // Подготовка бирок: проверяем фактическое нижнее поле dataCol и выбираем
-    // normal/compact до монтирования PdfEngine. Устаревший результат при смене
-    // данных отбрасывается флагом cancelled.
-    useEffect(() => {
-        if (!labelsData || templateType !== 'tag') {
-            return;
-        }
-
-        let cancelled = false;
-
-        decideModes(labelsData)
-            .then((result) => {
-                if (cancelled) {
-                    return;
-                }
-
-                if (result.errorSkus.length > 0) {
-                    setErrorMessage(
-                        'Часть бирок не помещается на лист 712×419 даже в компактном режиме. Проверьте данные этих артикулов:',
-                    );
-                    setErrorCardUrl(null);
-                    setErrorDetails(result.errorSkus);
-                    setStatus('error');
-
-                    return;
-                }
-
-                setModes(result.modes);
-            })
-            .catch((e) => {
-                if (cancelled) {
-                    return;
-                }
-
-                setErrorMessage(
-                    e instanceof Error ? e.message : 'Неизвестная ошибка',
-                );
-                setErrorCardUrl(null);
-                setErrorDetails([]);
-                setStatus('error');
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [labelsData, templateType]);
-
     const handleBlobReady = useCallback((b: Blob) => {
         if (objectUrlRef.current) {
             URL.revokeObjectURL(objectUrlRef.current);
@@ -334,12 +283,33 @@ export default function ExportStep({
         setStatus('ready');
     }, []);
 
-    const handleGenerateError = useCallback((message: string) => {
-        setErrorMessage(message);
-        setErrorCardUrl(null);
-        setErrorDetails([]);
-        setStatus('error');
-    }, []);
+    // Подготовка бирок и сборка PDF выполняются в Web Worker (decideModes и
+    // pdf().toBlob()), чтобы Canvas продолжал отдавать кадры. При уходе со
+    // страницы, смене данных или повторе старый worker terminate-ится, его
+    // устаревший ответ внутри клиента отбрасывается флагом active.
+    useEffect(() => {
+        if (!labelsData) {
+            return;
+        }
+
+        return runLabelPdfJob(labelsData, templateType, {
+            onReady: handleBlobReady,
+            onFitError: (errorSkus) => {
+                setErrorMessage(
+                    'Часть бирок не помещается на лист 712×419 даже в компактном режиме. Проверьте данные этих артикулов:',
+                );
+                setErrorCardUrl(null);
+                setErrorDetails(errorSkus);
+                setStatus('error');
+            },
+            onError: (message) => {
+                setErrorMessage(message);
+                setErrorCardUrl(null);
+                setErrorDetails([]);
+                setStatus('error');
+            },
+        });
+    }, [labelsData, templateType, handleBlobReady]);
 
     const handleNewBatch = () => {
         scene.run({ stepId: 1, hold: true });
@@ -485,18 +455,6 @@ export default function ExportStep({
                     <GenerationCaption index={captionIndex} />
                 </div>
             </section>
-
-            {labelsData &&
-                status === 'compiling' &&
-                (templateType !== 'tag' || modes !== null) && (
-                    <PdfEngine
-                        labels={labelsData}
-                        templateType={templateType}
-                        modes={modes}
-                        onReady={handleBlobReady}
-                        onError={handleGenerateError}
-                    />
-                )}
         </>
     );
 }
