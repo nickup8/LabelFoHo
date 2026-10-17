@@ -30,13 +30,38 @@ const WizardNavSetterContext = createContext<(nav: WizardNav | null) => void>(
 );
 const WizardNavContext = createContext<WizardNav | null>(null);
 
+const WizardOverlaySetterContext = createContext<(node: ReactNode) => void>(
+    () => {},
+);
+const WizardOverlayContext = createContext<ReactNode>(null);
+
+/**
+ * Renders a step-owned overlay (row detail dialog) as a child of `.foho-root`
+ * but outside `.stage` — the stage keeps a permanent `transform`, which would
+ * trap a `position: fixed` dialog in its box.
+ */
+export function useWizardOverlay(node: ReactNode): void {
+    const setOverlay = useContext(WizardOverlaySetterContext);
+
+    useLayoutEffect(() => {
+        setOverlay(node);
+
+        return () => setOverlay(null);
+    }, [setOverlay, node]);
+}
+
 function WizardNavProvider({ children }: { children: ReactNode }) {
     const [nav, setNav] = useState<WizardNav | null>(null);
+    const [overlay, setOverlay] = useState<ReactNode>(null);
 
     return (
         <WizardNavSetterContext.Provider value={setNav}>
             <WizardNavContext.Provider value={nav}>
-                {children}
+                <WizardOverlaySetterContext.Provider value={setOverlay}>
+                    <WizardOverlayContext.Provider value={overlay}>
+                        {children}
+                    </WizardOverlayContext.Provider>
+                </WizardOverlaySetterContext.Provider>
             </WizardNavContext.Provider>
         </WizardNavSetterContext.Provider>
     );
@@ -221,6 +246,7 @@ function ShellView({
     children,
 }: FohoShellProps) {
     const nav = useContext(WizardNavContext);
+    const overlay = useContext(WizardOverlayContext);
 
     const [busy, setBusy] = useState(false);
     const [generating, setGenerating] = useState(false);
@@ -455,6 +481,7 @@ function ShellView({
                                 </div>
                             </section>
                         </main>
+                        {overlay}
                     </div>
                 </SceneContext.Provider>
             </ReadyContext.Provider>

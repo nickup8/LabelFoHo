@@ -1,438 +1,525 @@
-import { router } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Phone, XCircle } from 'lucide-react';
-import { useState, useMemo } from 'react';
-import { useWizardNav } from '@/components/Labels/FohoShell';
+import { Link, router } from '@inertiajs/react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useWizardNav, useWizardOverlay } from '@/components/Labels/FohoShell';
 import { templateCountFor } from '@/components/Labels/WizardStepper';
-import type {WizardCategories} from '@/components/Labels/WizardStepper';
-import { cn, formatSize } from '@/lib/utils';
+import type { WizardCategories } from '@/components/Labels/WizardStepper';
+import { formatSize } from '@/lib/utils';
 import labels from '@/routes/labels';
 
-const PAGE_SIZES = [10, 25, 50, 100] as const;
+const PAGE_SIZES = [10, 25, 50] as const;
 
-type FilterMode = 'all' | 'errors' | 'success';
+type FilterMode = 'all' | 'errors' | 'valid';
 
 interface RowData {
-  product_name: string;
-  supplier_article: string;
-  barcode: string;
-  size: string;
-  composition: string;
-  composition_raw?: string;
-  manufacturer: string;
-  factory_name: string;
-  manufacture_date: string;
+    product_name: string;
+    supplier_article: string;
+    barcode: string;
+    size: string;
+    composition: string;
+    composition_raw?: string;
+    manufacturer: string;
+    factory_name: string;
+    manufacture_date: string;
 }
 
 interface ValidationRow {
-  row: number;
-  data: RowData;
-  errors: string[];
-  is_valid: boolean;
+    row: number;
+    data: RowData;
+    errors: string[];
+    is_valid: boolean;
 }
 
 interface Session {
-  id: string;
-  status: string;
-  category: string | null;
-  original_filename: string;
-  validation_results: ValidationRow[];
+    id: string;
+    status: string;
+    category: string | null;
+    original_filename: string;
+    validation_results: ValidationRow[];
 }
 
 interface ImporterCard {
-  name: string;
-  legal_address: string;
-  phone: string;
-  is_complete: boolean;
+    name: string;
+    legal_address: string;
+    phone: string;
+    is_complete: boolean;
 }
 
 interface Props {
-  session: Session;
-  importer: ImporterCard | null;
-  categories: WizardCategories;
+    session: Session;
+    importer: ImporterCard | null;
+    categories: WizardCategories;
+}
+
+function pluralize(
+    count: number,
+    forms: [one: string, few: string, many: string],
+): string {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+
+    if (mod10 === 1 && mod100 !== 11) {
+        return forms[0];
+    }
+
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return forms[1];
+    }
+
+    return forms[2];
+}
+
+function rowComposition(entry: ValidationRow, category: string | null): string {
+    // Mats print the factory's raw composition string; napkins keep the
+    // normalized one (existing validation/PDF data rule).
+    return category === 'mats'
+        ? entry.data.composition_raw || entry.data.composition || ''
+        : entry.data.composition || '';
+}
+
+/**
+ * Package `modal()` veil: backdrop click and Escape close the dialog, Tab is
+ * trapped, focus lands on the veil (mounted through the shell overlay slot).
+ */
+function DetailVeil({
+    onClose,
+    children,
+}: {
+    onClose: () => void;
+    children: ReactNode;
+}) {
+    const veilRef = useRef<HTMLDivElement>(null);
+
+    useLayoutEffect(() => {
+        veilRef.current?.focus();
+    }, []);
+
+    return (
+        <div
+            ref={veilRef}
+            className="dialog-veil"
+            role="presentation"
+            tabIndex={-1}
+            onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                    onClose();
+                }
+            }}
+            onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                    event.stopPropagation();
+                    onClose();
+
+                    return;
+                }
+
+                if (event.key !== 'Tab') {
+                    return;
+                }
+
+                const items = Array.from(
+                    event.currentTarget.querySelectorAll<HTMLElement>(
+                        'button,input,a,[tabindex]:not([tabindex="-1"])',
+                    ),
+                );
+
+                if (items.length === 0) {
+                    return;
+                }
+
+                const first = items[0];
+                const last = items[items.length - 1];
+
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }}
+        >
+            {children}
+        </div>
+    );
 }
 
 export default function AuditStep({ session, importer, categories }: Props) {
-  const rows: ValidationRow[] = session.validation_results ?? [];
-  const total = rows.length;
-  const validCount = rows.filter((r) => r.is_valid).length;
-  const invalidCount = rows.filter((r) => !r.is_valid).length;
+    const rows: ValidationRow[] = session.validation_results ?? [];
+    const total = rows.length;
+    const validCount = rows.filter((r) => r.is_valid).length;
+    const invalidCount = rows.filter((r) => !r.is_valid).length;
 
-  const templateCount = templateCountFor(categories, session.category);
+    const templateCount = templateCountFor(categories, session.category);
 
-  const [filter, setFilter] = useState<FilterMode>('all');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(10);
+    const [filter, setFilter] = useState<FilterMode>('all');
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState<number>(10);
+    const [detailRow, setDetailRow] = useState<ValidationRow | null>(null);
 
-  const importerReady = !!importer && importer.is_complete;
+    const detailReturnFocusRef = useRef<HTMLElement | null>(null);
 
-  const filteredRows = useMemo(() => {
-    switch (filter) {
-      case 'errors':
-        return rows.filter((r) => !r.is_valid);
-      case 'success':
-        return rows.filter((r) => r.is_valid);
-      default:
-        return rows;
-    }
-  }, [rows, filter]);
+    const filteredRows = useMemo(() => {
+        switch (filter) {
+            case 'errors':
+                return rows.filter((r) => !r.is_valid);
+            case 'valid':
+                return rows.filter((r) => r.is_valid);
+            default:
+                return rows;
+        }
+    }, [rows, filter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
-  const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
-  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const to = Math.min(page * pageSize, filteredRows.length);
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const offset = (currentPage - 1) * pageSize;
+    const paginatedRows = filteredRows.slice(offset, offset + pageSize);
 
-  const handleBack = () =>
-    router.get(
-      labels.index({ query: { session: session.id, step: 1 } }).url,
-      {},
-      { preserveState: true },
-    );
+    const categoryLabel = session.category
+        ? (categories?.[session.category]?.label ?? session.category)
+        : '';
 
-  const handleNext = () => {
-    if (invalidCount > 0) {
-      return;
-    }
+    const handleBack = () =>
+        router.get(
+            labels.index({ query: { session: session.id, step: 1 } }).url,
+            {},
+            { preserveState: true },
+        );
 
-    router.get(
-      labels.index({
-        query: { session: session.id, step: templateCount === 1 ? 4 : 3 },
-      }).url,
-      {},
-      { preserveState: true },
-    );
-  };
+    const handleNext = () => {
+        if (invalidCount > 0) {
+            return;
+        }
 
-  useWizardNav({
-    back: handleBack,
-    next: handleNext,
-    nextDisabled: invalidCount > 0,
-  });
+        router.get(
+            labels.index({
+                query: {
+                    session: session.id,
+                    step: templateCount === 1 ? 4 : 3,
+                },
+            }).url,
+            {},
+            { preserveState: true },
+        );
+    };
 
-  const switchFilter = (f: FilterMode) => {
-    setFilter(f);
-    setPage(1);
-  };
+    useWizardNav({
+        back: handleBack,
+        next: handleNext,
+        nextDisabled: invalidCount > 0,
+    });
 
-  const hasBarcodeError = (entry: ValidationRow) =>
-    entry.errors.some(
-      (e) =>
-        e.includes('Штрихкод') ||
-        e.includes('Баркод') ||
-        e.includes('EAN') ||
-        e.includes('barcode'),
-    );
+    const openDetail = (entry: ValidationRow) => {
+        detailReturnFocusRef.current =
+            document.activeElement as HTMLElement | null;
+        setDetailRow(entry);
+    };
 
-  return (
-    <div className="space-y-10">
+    const closeDetail = () => {
+        setDetailRow(null);
+        detailReturnFocusRef.current?.focus();
+    };
 
-      {/* Heading + Stats */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <p className="text-sm text-[var(--color-muted)]">
-            Результаты автоматической проверки файла{' '}
-            <span className="font-medium text-[var(--color-fg)]">
-              {session.original_filename}
-            </span>
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-[var(--color-surface)] border border-zinc-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
-            <div className="size-2 rounded-full bg-green-500" />
-            <div>
-              <p className="text-xs text-[var(--color-muted)] font-medium">
-                Успешно
-              </p>
-              <p className="text-base font-bold text-[var(--color-fg)] mt-0.5">
-                {validCount}
-              </p>
-            </div>
-          </div>
-          <div className="bg-[var(--color-surface)] border border-zinc-200 rounded-xl px-4 py-2.5 flex items-center gap-3">
-            <div className="size-2 rounded-full bg-red-500" />
-            <div>
-              <p className="text-xs text-[var(--color-muted)] font-medium">
-                Ошибки
-              </p>
-              <p className="text-base font-bold text-[var(--color-fg)] mt-0.5">
-                {invalidCount}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Shared importer card */}
-      <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-5">
-        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)]">
-          Импортёр
-        </h2>
-        <p className="mb-3 text-xs text-[var(--color-muted)]">
-          Единая карточка реквизитов применяется ко всем строкам и сессиям.
-          Без заполненной карточки экспорт PDF заблокирован.
-        </p>
-
-        <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-          {importer ? (
-            <div className="space-y-1.5 text-sm text-[var(--color-fg)]">
-              <p className="font-medium break-words">
-                {importer.name}
-              </p>
-              <p className="break-words text-xs text-[var(--color-muted)]">
-                {importer.legal_address}
-              </p>
-              <p className="flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
-                <Phone className="size-3.5 shrink-0" />
-                {importer.phone}
-              </p>
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--color-muted)]">
-              Карточка импортёра не заполнена
-            </p>
-          )}
-        </div>
-
-        {!importerReady && (
-          <p className="mt-4 flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
-            <AlertTriangle className="size-3.5 shrink-0" />
-            Карточка импортёра не заполнена — экспорт PDF заблокирован.{' '}
-            <a
-              href="/importers"
-              className="font-semibold underline underline-offset-2 hover:text-red-700"
-            >
-              Заполнить карточку
-            </a>
-          </p>
-        )}
-      </div>
-
-      {/* Filter tabs */}
-      <div className="flex items-center gap-1.5 bg-zinc-100 p-1 rounded-xl border border-zinc-200/50 w-fit">
-        {(['all', 'errors', 'success'] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => switchFilter(f)}
-            className={cn(
-              'px-3 py-1.5 text-xs font-medium rounded-lg transition-all',
-              filter === f
-                ? 'bg-white text-[var(--color-fg)] shadow-sm'
-                : 'text-[var(--color-muted)] hover:text-[var(--color-fg)]',
-            )}
-          >
-            {f === 'all' && `Все строки (${total})`}
-            {f === 'errors' && `С ошибками (${invalidCount})`}
-            {f === 'success' && `Без ошибок (${validCount})`}
-          </button>
-        ))}
-      </div>
-
-      {/* Table */}
-      <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-zinc-50 border-b border-zinc-200 text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider">
-                <th className="py-3 px-4 w-16">Строка</th>
-                <th className="py-3 px-4">Артикул / Название</th>
-                <th className="py-3 px-4">Штрихкод</th>
-                <th className="py-3 px-4">Фабрика</th>
-                <th className="py-3 px-4">Размер / Состав</th>
-                <th className="py-3 px-4 text-right">Статус</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {paginatedRows.map((entry) => {
-                const d = entry.data;
-
-                return (
-                  <tr
-                    key={entry.row}
-                    className={cn(
-                      'transition-colors',
-                      entry.is_valid
-                        ? 'hover:bg-zinc-50/50'
-                        : 'bg-red-50/30 hover:bg-red-50/60',
-                    )}
-                  >
-                    <td className="py-3.5 px-4 font-mono text-xs text-[var(--color-muted)]">
-                      {entry.row}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-mono text-xs text-[var(--color-fg)]">
-                        {d.supplier_article || (
-                          <span className="italic text-red-500">— пусто —</span>
-                        )}
-                      </div>
-                      <div className="text-xs text-[var(--color-muted)] mt-0.5">
-                        {d.product_name || (
-                          <span className="italic text-red-500">— пусто —</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      {d.barcode ? (
-                        <span
-                          className={cn(
-                            'font-mono text-xs',
-                            hasBarcodeError(entry)
-                              ? 'text-red-700'
-                              : 'text-[var(--color-fg)]',
-                          )}
+    // The dialog must live outside `.stage` (its transform traps fixed
+    // positioning), so it is published to the shell root through the overlay
+    // slot — the package appends the same markup to `document.body`.
+    useWizardOverlay(
+        detailRow ? (
+            <DetailVeil onClose={closeDetail}>
+                <section
+                    className="dialog detail-dialog"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="dialog-title"
+                >
+                    <div className="detail-heading">
+                        <span className="overline">Строка {detailRow.row}</span>
+                        <button
+                            type="button"
+                            className="close-icon"
+                            aria-label="Закрыть"
+                            onClick={closeDetail}
                         >
-                          {d.barcode}
-                        </span>
-                      ) : (
-                        <span className="italic text-red-500 text-xs">— пусто —</span>
-                      )}
-                      {hasBarcodeError(entry) &&
-                        entry.errors
-                          .filter(
-                            (e) =>
-                              e.includes('Штрихкод') ||
-                              e.includes('Баркод') ||
-                              e.includes('EAN') ||
-                              e.includes('barcode'),
-                          )
-                          .map((err, i) => (
-                            <div
-                              key={i}
-                              className="text-[10px] text-red-500 mt-1 font-medium flex items-center gap-1"
-                            >
-                              <XCircle className="size-3 shrink-0" />
-                              {err}
-                            </div>
-                          ))}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="text-xs text-[var(--color-fg)]">
-                        {d.factory_name || (
-                          <span className="italic text-red-500">— пусто —</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="text-xs text-[var(--color-fg)]">
-                        {d.size ? formatSize(d.size) : (
-                          <span className="italic text-red-500">— пусто —</span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[var(--color-muted)] mt-0.5">
-                        {session.category === 'mats'
-                          ? d.composition_raw || d.composition || '—'
-                          : d.composition || '—'}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      {entry.is_valid ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-green-50 text-green-700 rounded-md">
-                          <CheckCircle2 className="size-3" />
-                          Готов
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-md">
-                          <AlertTriangle className="size-3" />
-                          {entry.errors.length}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                            ×
+                        </button>
+                    </div>
+                    <h2 id="dialog-title">
+                        {detailRow.data.supplier_article || 'Данные товара'}
+                    </h2>
+                    <p>{detailRow.data.product_name}</p>
+                    {detailRow.errors.length > 0 && (
+                        <ul className="row-errors">
+                            {detailRow.errors.map((error) => (
+                                <li key={error}>{error}</li>
+                            ))}
+                        </ul>
+                    )}
+                    <dl className="detail-list">
+                        <div>
+                            <dt>Штрихкод</dt>
+                            <dd>{detailRow.data.barcode || 'Не заполнено'}</dd>
+                        </div>
+                        <div>
+                            <dt>Фабрика</dt>
+                            <dd>
+                                {detailRow.data.factory_name || 'Не заполнено'}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Размер</dt>
+                            <dd>
+                                {detailRow.data.size
+                                    ? formatSize(detailRow.data.size)
+                                    : 'Не заполнено'}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt>Состав</dt>
+                            <dd>
+                                {rowComposition(detailRow, session.category) ||
+                                    'Не заполнено'}
+                            </dd>
+                        </div>
+                    </dl>
+                    <div className="dialog-actions">
+                        <button
+                            type="button"
+                            className="primary"
+                            onClick={closeDetail}
+                        >
+                            Закрыть
+                        </button>
+                    </div>
+                </section>
+            </DetailVeil>
+        ) : null,
+    );
 
-        {/* Pagination */}
-        <div className="bg-zinc-50 border-t border-zinc-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-          <div className="text-xs text-[var(--color-muted)]">
-            Строки с {from} по {to} из {filteredRows.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setPage(1);
-              }}
-              className="text-xs bg-transparent border border-zinc-200 rounded-lg px-2 py-1 text-[var(--color-muted)] outline-none"
-            >
-              {PAGE_SIZES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+    const switchFilter = (f: FilterMode) => {
+        setFilter(f);
+        setPage(1);
+    };
 
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="p-1.5 rounded-lg text-[var(--color-muted)] disabled:text-zinc-300 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
-              >
-                <ArrowLeft className="size-4" />
-              </button>
-
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  className={cn(
-                    'w-8 h-8 rounded-lg text-xs font-medium transition-all',
-                    p === page
-                      ? 'bg-[var(--color-accent)] text-white shadow-sm'
-                      : 'text-[var(--color-fg)] hover:bg-zinc-100',
-                  )}
-                >
-                  {p}
-                </button>
-              ))}
-
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="p-1.5 rounded-lg text-[var(--color-muted)] disabled:text-zinc-300 disabled:cursor-not-allowed hover:bg-zinc-100 transition-colors"
-              >
-                <ArrowRight className="size-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Error detail section */}
-      {invalidCount > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-red-600">
-            Детали ошибок
-          </h3>
-          <div className="space-y-1.5">
-            {rows
-              .filter((r) => !r.is_valid)
-              .map((entry) => (
-                <div
-                  key={entry.row}
-                  className="rounded-lg border border-red-200 bg-red-50/50 px-4 py-2.5 text-sm"
-                >
-                  <p className="mb-1 text-xs font-medium text-red-700">
-                    Строка #{entry.row}
-                    {entry.data.product_name && ` · ${entry.data.product_name}`}
-                  </p>
-                  <ul className="space-y-0.5">
-                    {entry.errors.map((err, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-1.5 text-xs text-red-600"
-                      >
-                        <span className="mt-0.5 block size-1 shrink-0 rounded-full bg-red-500" />
-                        {err}
-                      </li>
-                    ))}
-                  </ul>
+    return (
+        <div>
+            <div className="audit-top">
+                <div className="audit-source">
+                    Файл <strong>{session.original_filename}</strong>
+                    <span>
+                        {categoryLabel} · {total}{' '}
+                        {pluralize(total, ['строка', 'строки', 'строк'])}
+                    </span>
                 </div>
-              ))}
-          </div>
+                <div className="audit-counters">
+                    <div>
+                        <b>{validCount}</b>
+                        <span>Готовы к экспорту</span>
+                    </div>
+                    <div
+                        className={invalidCount > 0 ? 'has-errors' : undefined}
+                    >
+                        <b>{invalidCount}</b>
+                        <span>Требуют внимания</span>
+                    </div>
+                </div>
+            </div>
+
+            <section className="importer-strip">
+                <div className="importer-symbol" aria-hidden="true">
+                    ↳
+                </div>
+                <div className="importer-summary">
+                    <span className="overline">Импортёр</span>
+                    <strong>
+                        {importer?.name || 'Реквизиты не заполнены'}
+                    </strong>
+                    <p>
+                        {importer?.legal_address ||
+                            'Добавьте адрес и телефон для экспорта PDF.'}
+                    </p>
+                    <span>{importer?.phone ?? ''}</span>
+                </div>
+                <Link href="/importers" className="text-link" prefetch>
+                    Изменить ↗
+                </Link>
+            </section>
+
+            <div className="table-tools">
+                <div
+                    className="filter-tabs"
+                    role="group"
+                    aria-label="Строки таблицы"
+                >
+                    {(
+                        [
+                            ['all', 'Все строки', total],
+                            ['errors', 'С ошибками', invalidCount],
+                            ['valid', 'Без ошибок', validCount],
+                        ] as const
+                    ).map(([key, label, count]) => (
+                        <button
+                            key={key}
+                            type="button"
+                            className={filter === key ? 'selected' : undefined}
+                            aria-pressed={filter === key}
+                            onClick={() => switchFilter(key)}
+                        >
+                            {label}
+                            <span>{count}</span>
+                        </button>
+                    ))}
+                </div>
+                {invalidCount > 0 && (
+                    <span className="table-hint">
+                        Исправьте ошибки в исходном файле и загрузите его
+                        заново.
+                    </span>
+                )}
+            </div>
+
+            <div className="table-shell">
+                <div
+                    className="table-scroll"
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Данные товаров"
+                >
+                    <table>
+                        <thead>
+                            <tr>
+                                <th className="row-num">Строка</th>
+                                <th>Артикул / название</th>
+                                <th>Штрихкод</th>
+                                <th>Фабрика</th>
+                                <th>Размер / состав</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {paginatedRows.length > 0 ? (
+                                paginatedRows.map((entry) => (
+                                    <tr key={entry.row}>
+                                        <td className="row-num">{entry.row}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                className="sku-link"
+                                                onClick={() =>
+                                                    openDetail(entry)
+                                                }
+                                            >
+                                                {entry.data.supplier_article ||
+                                                    'Без артикула'}{' '}
+                                                ↗
+                                            </button>
+                                            <span className="cell-secondary">
+                                                {entry.data.product_name ||
+                                                    'Название не заполнено'}
+                                            </span>
+                                        </td>
+                                        <td className="barcode-cell">
+                                            {entry.data.barcode || '—'}
+                                        </td>
+                                        <td>
+                                            {entry.data.factory_name || '—'}
+                                        </td>
+                                        <td>
+                                            <span className="cell-size">
+                                                {entry.data.size
+                                                    ? formatSize(
+                                                          entry.data.size,
+                                                      )
+                                                    : 'Размер не заполнен'}
+                                            </span>
+                                            <span className="cell-secondary composition">
+                                                {rowComposition(
+                                                    entry,
+                                                    session.category,
+                                                ) || 'Состав не заполнен'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span
+                                                className={`status-chip ${
+                                                    entry.is_valid
+                                                        ? 'valid'
+                                                        : 'invalid'
+                                                }`}
+                                            >
+                                                {entry.is_valid
+                                                    ? '✓ Готов'
+                                                    : `! ${entry.errors.length} ${pluralize(
+                                                          entry.errors.length,
+                                                          [
+                                                              'ошибка',
+                                                              'ошибки',
+                                                              'ошибок',
+                                                          ],
+                                                      )}`}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={6}>
+                                        <div className="empty-table">
+                                            <span>✓</span>
+                                            <strong>Здесь всё в порядке</strong>
+                                            <p>Строк с ошибками нет.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="table-bottom">
+                    <span>
+                        {filteredRows.length
+                            ? `Строки ${offset + 1}–${Math.min(offset + pageSize, filteredRows.length)} из ${filteredRows.length}`
+                            : 'Нет строк'}
+                    </span>
+                    <div className="table-pagination">
+                        <label>
+                            Показывать{' '}
+                            <select
+                                aria-label="Строк на странице"
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setPage(1);
+                                }}
+                            >
+                                {PAGE_SIZES.map((size) => (
+                                    <option key={size} value={size}>
+                                        {size}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <button
+                            type="button"
+                            aria-label="Предыдущая страница"
+                            disabled={currentPage === 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        >
+                            ←
+                        </button>
+                        <span className="page-current">{currentPage}</span>
+                        <button
+                            type="button"
+                            aria-label="Следующая страница"
+                            disabled={currentPage === totalPages}
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
+                        >
+                            →
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-      )}
-    </div>
-  );
+    );
 }
