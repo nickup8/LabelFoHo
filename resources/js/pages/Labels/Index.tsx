@@ -8,7 +8,7 @@ import {
     templateCountFor,
     wizardSteps,
 } from '@/components/Labels/WizardStepper';
-import type {WizardCategories} from '@/components/Labels/WizardStepper';
+import type { WizardCategories } from '@/components/Labels/WizardStepper';
 import UploadStep from '@/pages/Labels/Steps/UploadStep';
 import {
     readWizardCategory,
@@ -102,7 +102,7 @@ export default function LabelsWizard({
 
     return (
         <>
-            <Head title="Генерация бирок FoHo" />
+            <Head title="Генерация этикеток" />
 
             <FohoShell
                 steps={steps}
