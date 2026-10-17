@@ -1,126 +1,231 @@
 import { router, useForm } from '@inertiajs/react';
-import { Tag, Square, Ticket } from 'lucide-react';
+import { useCallback, useRef } from 'react';
 import { useWizardNav } from '@/components/Labels/FohoShell';
-import type {WizardCategories} from '@/components/Labels/WizardStepper';
+import type { WizardCategories } from '@/components/Labels/WizardStepper';
 import { cn } from '@/lib/utils';
 import labels from '@/routes/labels';
 import type { LabelTemplateType } from '@/types/labels';
 
-const TEMPLATE_TYPE_OPTIONS: { value: LabelTemplateType; label: string; description: string; icon: typeof Tag }[] = [
-  { value: 'napkin', label: 'Наклейка (салфетки)', description: 'Стандартная наклейка для салфеток', icon: Tag },
-  { value: 'mat', label: 'Наклейки коврики', description: 'Наклейка для ковриков', icon: Square },
-  { value: 'tag', label: 'Бирки', description: 'Подвесная бирка', icon: Ticket },
-];
+const ARROW_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+
+interface TemplateVisual {
+    title: string;
+    description: string;
+    /** Package art: `mat` reuses the sticker drawing. */
+    art: 'sticker' | 'tag';
+}
+
+const TEMPLATE_VISUALS: Record<LabelTemplateType, TemplateVisual> = {
+    napkin: {
+        title: 'Наклейки салфетки',
+        description: 'Наклейка для салфеток',
+        art: 'sticker',
+    },
+    mat: {
+        title: 'Наклейки коврики',
+        description: 'Вертикальные наклейки',
+        art: 'sticker',
+    },
+    tag: {
+        title: 'Бирки',
+        description: 'Горизонтальные бирки',
+        art: 'tag',
+    },
+};
+
+interface ValidationRow {
+    row: number;
+}
 
 interface Session {
-  id: string;
-  category: string | null;
+    id: string;
+    category: string | null;
+    validation_results?: ValidationRow[];
 }
 
 interface Props {
-  session: Session;
-  categories: WizardCategories;
+    session: Session;
+    categories: WizardCategories;
 }
 
 interface TemplateForm {
-  session_id: string;
-  template_type: LabelTemplateType | null;
+    session_id: string;
+    template_type: LabelTemplateType | null;
+}
+
+function pluralize(
+    count: number,
+    forms: [one: string, few: string, many: string],
+): string {
+    const mod10 = count % 10;
+    const mod100 = count % 100;
+
+    if (mod10 === 1 && mod100 !== 11) {
+        return forms[0];
+    }
+
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+        return forms[1];
+    }
+
+    return forms[2];
+}
+
+function StickerArt() {
+    return (
+        <div className="sticker-shape">
+            <i />
+            <i />
+            <i />
+        </div>
+    );
+}
+
+function TagArt() {
+    return (
+        <div className="tag-shape">
+            <i />
+            <i />
+            <i />
+        </div>
+    );
 }
 
 export default function TemplateStep({ session, categories }: Props) {
-  const { data, setData, post, processing } = useForm<TemplateForm>({
-    session_id: session.id,
-    template_type: null,
-  });
-
-  const allowedTemplates = session.category
-    ? categories?.[session.category]?.templates
-    : undefined;
-
-  const options = allowedTemplates
-    ? TEMPLATE_TYPE_OPTIONS.filter((opt) => allowedTemplates.includes(opt.value))
-    : TEMPLATE_TYPE_OPTIONS;
-
-  const gridColumns =
-    options.length === 1
-      ? 'sm:grid-cols-1'
-      : options.length === 2
-        ? 'sm:grid-cols-2'
-        : 'sm:grid-cols-3';
-
-  const handleBack = () =>
-    router.get(
-      labels.index({ query: { session: session.id, step: 2 } }).url,
-      {},
-      { preserveState: true },
-    );
-  const handleNext = () =>
-    post(labels.selectTemplate().url, {
-      preserveScroll: true,
-      preserveState: true,
+    const { data, setData, post, processing } = useForm<TemplateForm>({
+        session_id: session.id,
+        template_type: null,
     });
 
-  useWizardNav({
-    back: handleBack,
-    next: handleNext,
-    nextDisabled: !data.template_type || processing,
-  });
+    const choicesRef = useRef<HTMLDivElement>(null);
 
-  return (
-    <div className="space-y-10">
+    const allowedTemplates = session.category
+        ? categories?.[session.category]?.templates
+        : undefined;
 
-      {/* Heading */}
-      <div>
-        <p className="text-sm text-[var(--color-muted)]">
-          Выберите тип этикетки для генерации
-        </p>
-      </div>
+    const options: LabelTemplateType[] =
+        allowedTemplates && allowedTemplates.length > 0
+            ? (allowedTemplates as LabelTemplateType[])
+            : ['napkin', 'tag'];
 
-      {/* Template type selector */}
-      <div className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-[var(--color-fg)]">
-          Тип этикетки
-        </h2>
-        <div className={cn('grid grid-cols-1 gap-3', gridColumns)}>
-          {options.map((opt) => {
-            const Icon = opt.icon;
-            const isSelected = data.template_type === opt.value;
+    const categoryLabel = session.category
+        ? (categories?.[session.category]?.label ?? session.category)
+        : '';
+    const rowCount = session.validation_results?.length ?? 0;
 
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setData('template_type', opt.value)}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg border p-4 text-left transition-all cursor-pointer',
-                  isSelected
-                    ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/10 bg-[var(--color-accent)]/5'
-                    : 'border-zinc-200 hover:border-zinc-300',
-                )}
-              >
-                <div
-                  className={cn(
-                    'flex size-10 shrink-0 items-center justify-center rounded-lg',
-                    isSelected
-                      ? 'bg-[var(--color-accent)] text-white'
-                      : 'bg-zinc-100 text-[var(--color-muted)]',
-                  )}
-                >
-                  <Icon className="size-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-[var(--color-fg)]">
-                    {opt.label}
-                  </p>
-                  <p className="text-xs text-[var(--color-muted)]">
-                    {opt.description}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
+    const focusChoice = useCallback((value: LabelTemplateType) => {
+        const choices =
+            choicesRef.current?.querySelectorAll<HTMLElement>(
+                '[data-template]',
+            ) ?? [];
+
+        choices.forEach((choice) => {
+            if (choice.getAttribute('data-template') === value) {
+                choice.focus();
+            }
+        });
+    }, []);
+
+    const handleBack = () =>
+        router.get(
+            labels.index({ query: { session: session.id, step: 2 } }).url,
+            {},
+            { preserveState: true },
+        );
+
+    const handleNext = () =>
+        post(labels.selectTemplate().url, {
+            preserveScroll: true,
+            preserveState: true,
+        });
+
+    useWizardNav({
+        back: handleBack,
+        next: handleNext,
+        nextLabel: 'К экспорту',
+        nextDisabled: !data.template_type || processing,
+    });
+
+    return (
+        <div>
+            <div className="template-intro">
+                <span className="overline">Тип этикетки</span>
+                <span className="quiet">
+                    {categoryLabel} · {rowCount}{' '}
+                    {pluralize(rowCount, ['товар', 'товара', 'товаров'])}
+                </span>
+            </div>
+
+            <div
+                ref={choicesRef}
+                className="template-choices"
+                role="radiogroup"
+                aria-label="Тип этикетки"
+            >
+                {options.map((value, index) => {
+                    const visual = TEMPLATE_VISUALS[value];
+                    const isSelected = data.template_type === value;
+
+                    if (!visual) {
+                        return null;
+                    }
+
+                    return (
+                        <button
+                            key={value}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            data-template={value}
+                            tabIndex={
+                                isSelected ||
+                                (!data.template_type && index === 0)
+                                    ? 0
+                                    : -1
+                            }
+                            className={cn(
+                                'template-choice',
+                                isSelected && 'selected',
+                            )}
+                            onClick={() => setData('template_type', value)}
+                            onKeyDown={(event) => {
+                                if (!ARROW_KEYS.includes(event.key)) {
+                                    return;
+                                }
+
+                                event.preventDefault();
+
+                                const nextIndex =
+                                    index === options.length - 1
+                                        ? 0
+                                        : index + 1;
+                                const nextValue = options[nextIndex];
+
+                                setData('template_type', nextValue);
+                                focusChoice(nextValue);
+                            }}
+                        >
+                            <div
+                                className={cn('template-art', visual.art)}
+                                aria-hidden="true"
+                            >
+                                {visual.art === 'sticker' ? (
+                                    <StickerArt />
+                                ) : (
+                                    <TagArt />
+                                )}
+                            </div>
+                            <div className="template-copy">
+                                <strong>{visual.title}</strong>
+                                <span>{visual.description}</span>
+                            </div>
+                            <span className="choice-check" aria-hidden="true">
+                                {isSelected ? '✓' : '↗'}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
