@@ -1,6 +1,7 @@
-import { Head, useForm, usePage } from '@inertiajs/react';
-import { AlertCircle, CheckCircle2, Save } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
+import '../../../css/foho.css';
 
 interface ImporterCard {
     name: string;
@@ -16,24 +17,9 @@ interface PageProps {
     flash?: { success?: string };
 }
 
-const inputClass =
-    'flex w-full rounded-md border border-zinc-300 bg-background px-2.5 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700';
-
-function InputError({ message }: { message?: string }) {
-    if (!message) {
-        return null;
-    }
-
-    return (
-        <p className="flex items-center gap-1 text-xs text-red-500">
-            <AlertCircle className="size-3 shrink-0" />
-            {message}
-        </p>
-    );
-}
-
 export default function ImportersIndex({ importer }: Props) {
     const { flash } = usePage().props as PageProps;
+    const toastedFlash = useRef<string | null>(null);
 
     const { data, setData, put, processing, errors } = useForm({
         name: importer?.name ?? '',
@@ -41,117 +27,168 @@ export default function ImportersIndex({ importer }: Props) {
         phone: importer?.phone ?? '',
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
+    useEffect(() => {
+        if (!flash?.success || toastedFlash.current === flash.success) {
+            return;
+        }
+
+        toastedFlash.current = flash.success;
+        toast(flash.success);
+    }, [flash?.success]);
+
+    const handleSubmit = (event: React.FormEvent) => {
+        event.preventDefault();
         put('/importers', { preserveScroll: true });
     };
 
+    const firstError =
+        errors.name || errors.legal_address || errors.phone || '';
+    const message = firstError
+        ? firstError
+        : flash?.success
+          ? '✓ Изменения применены'
+          : '';
+
     return (
         <>
-            <Head title="Импортёр" />
+            <Head title="Реквизиты импортёра" />
 
-            <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
-                <div>
-                    <h1 className="text-2xl font-bold text-[var(--color-fg)] dark:text-zinc-100">
-                        Импортёр
-                    </h1>
-                    <p className="mt-1 text-sm text-[var(--color-muted)] dark:text-zinc-400">
-                        Единая карточка реквизитов импортёра — используется на
-                        всех этикетках при экспорте PDF
-                    </p>
-                </div>
+            <div
+                className="foho-root"
+                data-theme="mono"
+                data-page="importer"
+                data-scene="4"
+            >
+                <header className="header">
+                    <Link
+                        href="/labels"
+                        className="logo"
+                        aria-label="FoHo"
+                        prefetch
+                    >
+                        <img src="/foho/brand/foho-logo.png" alt="FoHo" />
+                    </Link>
+                    <nav aria-label="Разделы приложения">
+                        <Link href="/labels" prefetch>
+                            Генератор этикеток
+                        </Link>
+                        <Link href="/importers" prefetch aria-current="page">
+                            Импортёр
+                        </Link>
+                    </nav>
+                </header>
+                <main>
+                    <section className="hero">
+                        <h1>
+                            Реквизиты <span>импортёра</span>
+                        </h1>
+                        <p>Одна карточка реквизитов для всех этикеток.</p>
+                    </section>
+                    <section
+                        className="workspace"
+                        aria-label="Реквизиты импортёра"
+                    >
+                        <div className="stage">
+                            <form
+                                className="importer-form"
+                                noValidate
+                                onSubmit={handleSubmit}
+                            >
+                                <div className="form-section-head">
+                                    <span className="overline">
+                                        Карточка импортёра
+                                    </span>
+                                    <span className="saved-mark">
+                                        Применяется ко всем этикеткам
+                                    </span>
+                                </div>
 
-                {flash?.success && (
-                    <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300">
-                        <CheckCircle2 className="size-4 shrink-0" />
-                        {flash.success}
-                    </div>
-                )}
+                                <label className="field">
+                                    <span>
+                                        Название компании <em>*</em>
+                                    </span>
+                                    <input
+                                        name="company"
+                                        type="text"
+                                        maxLength={250}
+                                        value={data.name}
+                                        onChange={(event) =>
+                                            setData('name', event.target.value)
+                                        }
+                                        placeholder="Название организации или ИП"
+                                        autoComplete="organization"
+                                    />
+                                </label>
 
-                {!importer && (
-                    <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/40 dark:text-amber-300">
-                        <AlertCircle className="size-4 shrink-0" />
-                        Карточка импортёра ещё не заполнена. Без неё экспорт
-                        этикеток заблокирован.
-                    </div>
-                )}
+                                <label className="field">
+                                    <span>
+                                        Юридический адрес <em>*</em>
+                                    </span>
+                                    <textarea
+                                        name="address"
+                                        maxLength={1000}
+                                        rows={3}
+                                        value={data.legal_address}
+                                        onChange={(event) =>
+                                            setData(
+                                                'legal_address',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="Индекс, страна, город, улица, дом"
+                                        autoComplete="street-address"
+                                    />
+                                </label>
 
-                <form
-                    onSubmit={handleSubmit}
-                    className="rounded-xl border border-zinc-200 bg-[var(--color-surface)] p-5 dark:border-zinc-800 dark:bg-zinc-900"
-                >
-                    <h2 className="mb-4 text-sm font-semibold tracking-wide text-[var(--color-fg)] uppercase dark:text-zinc-100">
-                        Реквизиты для этикеток
-                    </h2>
+                                <label className="field">
+                                    <span>
+                                        Телефон <em>*</em>
+                                    </span>
+                                    <input
+                                        name="phone"
+                                        type="tel"
+                                        maxLength={80}
+                                        value={data.phone}
+                                        onChange={(event) =>
+                                            setData('phone', event.target.value)
+                                        }
+                                        placeholder="+7 (___) ___-__-__"
+                                        autoComplete="tel"
+                                    />
+                                </label>
 
-                    <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-[var(--color-fg)] dark:text-zinc-200">
-                                Название организации *
-                            </label>
-                            <input
-                                type="text"
-                                value={data.name}
-                                onChange={(e) =>
-                                    setData('name', e.target.value)
-                                }
-                                className={inputClass}
-                                placeholder="Например: ИП Климин П. А."
-                            />
-                            <InputError message={errors.name} />
+                                <div className="importer-form-footer">
+                                    <p>
+                                        Реквизиты сохраняются для следующих
+                                        пакетов этикеток.
+                                    </p>
+                                    <button
+                                        className="primary"
+                                        type="submit"
+                                        disabled={processing}
+                                    >
+                                        Сохранить{' '}
+                                        <span aria-hidden="true">↗</span>
+                                    </button>
+                                </div>
+                                <p
+                                    className="form-message"
+                                    role={firstError ? 'alert' : 'status'}
+                                >
+                                    {message}
+                                </p>
+                            </form>
+
+                            <Link
+                                href="/labels"
+                                className="text-link return-generator"
+                                prefetch
+                            >
+                                ← Вернуться к генератору
+                            </Link>
                         </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-[var(--color-fg)] dark:text-zinc-200">
-                                Юридический адрес *
-                            </label>
-                            <textarea
-                                value={data.legal_address}
-                                onChange={(e) =>
-                                    setData('legal_address', e.target.value)
-                                }
-                                rows={3}
-                                className={cn(
-                                    inputClass,
-                                    'min-h-[60px] resize-y',
-                                )}
-                                placeholder="Полный юридический адрес"
-                            />
-                            <InputError message={errors.legal_address} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-[var(--color-fg)] dark:text-zinc-200">
-                                Телефон *
-                            </label>
-                            <input
-                                type="text"
-                                value={data.phone}
-                                onChange={(e) =>
-                                    setData('phone', e.target.value)
-                                }
-                                className={inputClass}
-                                placeholder="+7 (995) 771-27-92, доб. 123"
-                            />
-                            <InputError message={errors.phone} />
-                        </div>
-                    </div>
-
-                    <div className="mt-5 flex justify-end">
-                        <button
-                            type="submit"
-                            disabled={processing}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
-                        >
-                            {processing ? (
-                                <span className="inline-block size-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                            ) : (
-                                <Save className="size-4" />
-                            )}
-                            {processing ? 'Сохранение...' : 'Сохранить'}
-                        </button>
-                    </div>
-                </form>
+                    </section>
+                </main>
             </div>
         </>
     );
