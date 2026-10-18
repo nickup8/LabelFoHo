@@ -59,11 +59,7 @@ export default function ImportersIndex({ importer }: Props) {
 
     const firstError =
         errors.name || errors.legal_address || errors.phone || '';
-    const message = firstError
-        ? firstError
-        : flash?.success
-          ? '✓ Изменения применены'
-          : '';
+    const message = firstError;
 
     // Logo reloads the saved session on the upload step; «Генератор» and the
     // return link open the remembered wizard step when it was set.
