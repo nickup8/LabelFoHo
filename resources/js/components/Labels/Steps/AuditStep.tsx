@@ -1,7 +1,12 @@
 import { Link, router } from '@inertiajs/react';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { useWizardNav, useWizardOverlay } from '@/components/Labels/FohoShell';
+import {
+    isPlainLeftClick,
+    navigateWithScene,
+    rememberGeneratorReturn,
+} from '@/components/Labels/SceneTransition';
 import { templateCountFor } from '@/components/Labels/WizardStepper';
 import type { WizardCategories } from '@/components/Labels/WizardStepper';
 import { formatSize } from '@/lib/utils';
@@ -209,6 +214,22 @@ export default function AuditStep({ session, importer, categories }: Props) {
         nextDisabled: invalidCount > 0,
     });
 
+    const goImporter = (event: ReactMouseEvent) => {
+        if (!isPlainLeftClick(event)) {
+            return;
+        }
+
+        event.preventDefault();
+
+        rememberGeneratorReturn({
+            number: '02',
+            word: 'Аудит',
+            url: `/labels?session=${encodeURIComponent(session.id)}&step=2`,
+        });
+
+        navigateWithScene('/importers', { number: '05', word: 'Импортёр' });
+    };
+
     const openDetail = (entry: ValidationRow) => {
         detailReturnFocusRef.current =
             document.activeElement as HTMLElement | null;
@@ -339,7 +360,12 @@ export default function AuditStep({ session, importer, categories }: Props) {
                     </p>
                     <span>{importer?.phone ?? ''}</span>
                 </div>
-                <Link href="/importers" className="text-link" prefetch>
+                <Link
+                    href="/importers"
+                    className="text-link"
+                    prefetch
+                    onClick={goImporter}
+                >
                     Изменить ↗
                 </Link>
             </section>

@@ -245,7 +245,9 @@ export default function ImportersIndex({ importer }: Props) {
                                 prefetch
                                 onClick={goGenerator}
                             >
-                                ← Вернуться к генератору
+                                {readGeneratorReturn().word === 'Аудит'
+                                    ? '← Вернуться к аудиту'
+                                    : '← Вернуться к генератору'}
                             </Link>
                         </div>
                     </section>
