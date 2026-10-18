@@ -1,6 +1,13 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useRef } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { toast } from 'sonner';
+import {
+    isPlainLeftClick,
+    navigateWithScene,
+    readGeneratorReturn,
+    uploadUrlFromReturn,
+} from '@/components/Labels/SceneTransition';
 import '../../../css/foho.css';
 
 interface ImporterCard {
@@ -49,6 +56,33 @@ export default function ImportersIndex({ importer }: Props) {
           ? '✓ Изменения применены'
           : '';
 
+    // Logo reloads the saved session on the upload step; «Генератор» and the
+    // return link open the remembered wizard step when it was set.
+    const goUpload = (event: ReactMouseEvent) => {
+        if (!isPlainLeftClick(event)) {
+            return;
+        }
+
+        event.preventDefault();
+        navigateWithScene(uploadUrlFromReturn(), {
+            number: '01',
+            word: 'Загрузка',
+        });
+    };
+
+    const goGenerator = (event: ReactMouseEvent) => {
+        if (!isPlainLeftClick(event)) {
+            return;
+        }
+
+        event.preventDefault();
+        const target = readGeneratorReturn();
+        navigateWithScene(target.url, {
+            number: target.number,
+            word: target.word,
+        });
+    };
+
     return (
         <>
             <Head title="Реквизиты импортёра" />
@@ -61,18 +95,32 @@ export default function ImportersIndex({ importer }: Props) {
             >
                 <header className="header">
                     <Link
-                        href="/labels"
+                        href={uploadUrlFromReturn()}
                         className="logo"
                         aria-label="FoHo"
                         prefetch
+                        onClick={goUpload}
                     >
                         <img src="/foho/brand/foho-logo.png" alt="FoHo" />
                     </Link>
                     <nav aria-label="Разделы приложения">
-                        <Link href="/labels" prefetch>
+                        <Link
+                            href={readGeneratorReturn().url}
+                            prefetch
+                            onClick={goGenerator}
+                        >
                             Генератор этикеток
                         </Link>
-                        <Link href="/importers" prefetch aria-current="page">
+                        <Link
+                            href="/importers"
+                            prefetch
+                            aria-current="page"
+                            onClick={(event) => {
+                                if (isPlainLeftClick(event)) {
+                                    event.preventDefault();
+                                }
+                            }}
+                        >
                             Импортёр
                         </Link>
                     </nav>
@@ -180,9 +228,10 @@ export default function ImportersIndex({ importer }: Props) {
                             </form>
 
                             <Link
-                                href="/labels"
+                                href={readGeneratorReturn().url}
                                 className="text-link return-generator"
                                 prefetch
+                                onClick={goGenerator}
                             >
                                 ← Вернуться к генератору
                             </Link>

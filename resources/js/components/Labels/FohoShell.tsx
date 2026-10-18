@@ -8,8 +8,13 @@ import {
     useMemo,
     useState,
 } from 'react';
-import type { ReactNode } from 'react';
-import { runSceneTransition } from '@/components/Labels/SceneTransition';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import {
+    isPlainLeftClick,
+    navigateWithScene,
+    rememberGeneratorReturn,
+    runSceneTransition,
+} from '@/components/Labels/SceneTransition';
 import WizardStepper from '@/components/Labels/WizardStepper';
 import type { WizardStep } from '@/components/Labels/WizardStepper';
 import { cn } from '@/lib/utils';
@@ -323,6 +328,65 @@ function ShellView({
     const sceneIndex = activeIndex >= 0 ? String(activeIndex) : undefined;
     const view = hold ? hold.view : children;
 
+    const currentSessionId = () =>
+        new URL(window.location.href).searchParams.get('session');
+
+    const uploadTarget = () => {
+        const sessionId = currentSessionId();
+
+        return sessionId
+            ? `/labels?session=${encodeURIComponent(sessionId)}&step=1`
+            : '/labels';
+    };
+
+    // Logo and «Генератор этикеток» open the upload step under the scene,
+    // keeping the active session in the query.
+    const goUpload = (event: ReactMouseEvent) => {
+        if (!isPlainLeftClick(event)) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (busy) {
+            return;
+        }
+
+        navigateWithScene(uploadTarget(), { number: '01', word: 'Загрузка' });
+    };
+
+    const goImporter = (event: ReactMouseEvent) => {
+        if (!isPlainLeftClick(event)) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (busy || window.location.pathname.startsWith('/importers')) {
+            return;
+        }
+
+        const sessionId = currentSessionId();
+        const step = steps.find((item) => item.id === displayId);
+        const stepIndex = steps.findIndex((item) => item.id === displayId);
+
+        if (sessionId && step) {
+            rememberGeneratorReturn({
+                number: `0${stepIndex + 1}`,
+                word: step.label,
+                url: `/labels?session=${encodeURIComponent(sessionId)}&step=${displayId}`,
+            });
+        } else {
+            rememberGeneratorReturn({
+                number: '01',
+                word: 'Загрузка',
+                url: '/labels',
+            });
+        }
+
+        navigateWithScene('/importers', { number: '05', word: 'Импортёр' });
+    };
+
     // Footer navigation starts the transition and fires the real Inertia
     // request immediately — the visit itself is never delayed by animation.
     const runForVisit = (targetId: number | undefined, visit: () => void) => {
@@ -399,10 +463,11 @@ function ShellView({
                     >
                         <header className="header">
                             <Link
-                                href="/labels"
+                                href={uploadTarget()}
                                 className="logo"
                                 aria-label="FoHo"
                                 prefetch
+                                onClick={goUpload}
                             >
                                 <img
                                     src="/foho/brand/foho-logo.png"
@@ -411,13 +476,18 @@ function ShellView({
                             </Link>
                             <nav aria-label="Разделы приложения">
                                 <Link
-                                    href="/labels"
+                                    href={uploadTarget()}
                                     prefetch
                                     aria-current="page"
+                                    onClick={goUpload}
                                 >
                                     Генератор этикеток
                                 </Link>
-                                <Link href="/importers" prefetch>
+                                <Link
+                                    href="/importers"
+                                    prefetch
+                                    onClick={goImporter}
+                                >
                                     Импортёр
                                 </Link>
                             </nav>
