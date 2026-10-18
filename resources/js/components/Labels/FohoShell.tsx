@@ -8,13 +8,8 @@ import {
     useMemo,
     useState,
 } from 'react';
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
-import {
-    isPlainLeftClick,
-    navigateWithScene,
-    rememberGeneratorReturn,
-    runSceneTransition,
-} from '@/components/Labels/SceneTransition';
+import type { ReactNode } from 'react';
+import { runSceneTransition } from '@/components/Labels/SceneTransition';
 import WizardStepper from '@/components/Labels/WizardStepper';
 import type { WizardStep } from '@/components/Labels/WizardStepper';
 import { cn } from '@/lib/utils';
@@ -258,7 +253,7 @@ function ShellView({
     const [ready, setReady] = useState(false);
     // While a transition is closing the old scene, the previous step and its
     // stage content stay on screen; the swap to the latest props happens under
-    // the overlay at the SceneTransition swap moment.
+    // the overlay at 520 ms (motion.js `change()` timing).
     const [hold, setHold] = useState<{
         view: ReactNode;
         stepId: number;
@@ -300,8 +295,25 @@ function ShellView({
 
     const scene = useMemo<SceneApi>(() => ({ run: runScene }), [runScene]);
 
-    // Browser «Назад»/«Вперёд»: Inertia restores the page from history without
-    // the scene overlay, matching the reference package (`animate: false`).
+    // Browser «Назад»/«Вперёд»: Inertia restores the page from history while
+    // the overlay (mounted at the app root) is already sweeping.
+    useEffect(() => {
+        const onPopState = () => {
+            const url = new URL(window.location.href);
+
+            if (!url.pathname.startsWith('/labels')) {
+                return;
+            }
+
+            const targetId = Number(url.searchParams.get('step') ?? 1);
+
+            runScene({ stepId: targetId });
+        };
+
+        window.addEventListener('popstate', onPopState);
+
+        return () => window.removeEventListener('popstate', onPopState);
+    }, [runScene]);
 
     const displayId = hold ? hold.stepId : currentId;
     const page = PAGE_BY_STEP[displayId] ?? 'upload';
@@ -310,65 +322,6 @@ function ShellView({
     const activeIndex = steps.findIndex((step) => step.id === displayId);
     const sceneIndex = activeIndex >= 0 ? String(activeIndex) : undefined;
     const view = hold ? hold.view : children;
-
-    const currentSessionId = () =>
-        new URL(window.location.href).searchParams.get('session');
-
-    const uploadTarget = () => {
-        const sessionId = currentSessionId();
-
-        return sessionId
-            ? `/labels?session=${encodeURIComponent(sessionId)}&step=1`
-            : '/labels';
-    };
-
-    // Logo and «Генератор этикеток» open the upload step under the scene,
-    // keeping the active session in the query.
-    const goUpload = (event: ReactMouseEvent) => {
-        if (!isPlainLeftClick(event)) {
-            return;
-        }
-
-        event.preventDefault();
-
-        if (busy) {
-            return;
-        }
-
-        navigateWithScene(uploadTarget(), { number: '01', word: 'Загрузка' });
-    };
-
-    const goImporter = (event: ReactMouseEvent) => {
-        if (!isPlainLeftClick(event)) {
-            return;
-        }
-
-        event.preventDefault();
-
-        if (busy || window.location.pathname.startsWith('/importers')) {
-            return;
-        }
-
-        const sessionId = currentSessionId();
-        const step = steps.find((item) => item.id === displayId);
-        const stepIndex = steps.findIndex((item) => item.id === displayId);
-
-        if (sessionId && step) {
-            rememberGeneratorReturn({
-                number: `0${stepIndex + 1}`,
-                word: step.label,
-                url: `/labels?session=${encodeURIComponent(sessionId)}&step=${displayId}`,
-            });
-        } else {
-            rememberGeneratorReturn({
-                number: '01',
-                word: 'Загрузка',
-                url: '/labels',
-            });
-        }
-
-        navigateWithScene('/importers', { number: '05', word: 'Импортёр' });
-    };
 
     // Footer navigation starts the transition and fires the real Inertia
     // request immediately — the visit itself is never delayed by animation.
@@ -446,11 +399,10 @@ function ShellView({
                     >
                         <header className="header">
                             <Link
-                                href={uploadTarget()}
+                                href="/labels"
                                 className="logo"
                                 aria-label="FoHo"
                                 prefetch
-                                onClick={goUpload}
                             >
                                 <img
                                     src="/foho/brand/foho-logo.png"
@@ -459,18 +411,13 @@ function ShellView({
                             </Link>
                             <nav aria-label="Разделы приложения">
                                 <Link
-                                    href={uploadTarget()}
+                                    href="/labels"
                                     prefetch
                                     aria-current="page"
-                                    onClick={goUpload}
                                 >
                                     Генератор этикеток
                                 </Link>
-                                <Link
-                                    href="/importers"
-                                    prefetch
-                                    onClick={goImporter}
-                                >
+                                <Link href="/importers" prefetch>
                                     Импортёр
                                 </Link>
                             </nav>
