@@ -37,11 +37,16 @@ export function formatAddress(address: string): string {
         .replace(/г\.\s+/g, 'г.\u00A0');
 }
 
+// URL шрифтов строятся от origin: в Blob Worker относительный путь
+// разрешается от адреса worker, а не от корня сайта (см. labelPdfWorker.ts).
+const fontUrl = (path: string): string =>
+    new URL(path, globalThis.location.origin).href;
+
 Font.register({
     family: 'Inter',
     fonts: [
-        { src: '/fonts/Inter-Regular.ttf', fontWeight: 400 },
-        { src: '/fonts/Inter-Bold.ttf', fontWeight: 700 },
+        { src: fontUrl('/fonts/Inter-Regular.ttf'), fontWeight: 400 },
+        { src: fontUrl('/fonts/Inter-Bold.ttf'), fontWeight: 700 },
     ],
 });
 
