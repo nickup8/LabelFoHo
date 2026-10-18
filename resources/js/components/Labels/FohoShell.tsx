@@ -6,14 +6,17 @@ import {
     useEffect,
     useLayoutEffect,
     useMemo,
+    useRef,
     useState,
 } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import {
     isPlainLeftClick,
+    isSceneRunning,
     navigateWithScene,
     rememberGeneratorReturn,
     runSceneTransition,
+    useSceneContentReady,
 } from '@/components/Labels/SceneTransition';
 import WizardStepper from '@/components/Labels/WizardStepper';
 import type { WizardStep } from '@/components/Labels/WizardStepper';
@@ -256,16 +259,29 @@ function ShellView({
     const [busy, setBusy] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [ready, setReady] = useState(false);
+    // The shell mounts its hero/workspace entrance only on a plain page load;
+    // instances mounted under the closed layers never replay `arrive`, so a
+    // transition never re-hides already shown page content.
+    const [entranceBlocked] = useState(() => isSceneRunning());
     // While a transition is closing the old scene, the previous step and its
-    // stage content stay on screen; the swap to the latest props happens under
-    // the overlay at 520 ms (motion.js `change()` timing).
+    // stage content stay on screen; the hold is released at the swap moment
+    // once the layers fully cover the viewport.
     const [hold, setHold] = useState<{
         view: ReactNode;
         stepId: number;
     } | null>(null);
+    // Target of the run in flight: the readiness signal fires only after the
+    // swap and only once the displayed step reaches this target (a slow
+    // response keeps the layers closed until this commit).
+    const sceneTargetRef = useRef<number | null>(null);
+    const [sceneSwapped, setSceneSwapped] = useState(false);
 
     const runScene = useCallback(
         (request: SceneRunRequest): boolean => {
+            if (isSceneRunning()) {
+                return false;
+            }
+
             const index = steps.findIndex((step) => step.id === request.stepId);
 
             if (index < 0) {
@@ -274,6 +290,9 @@ function ShellView({
                 return false;
             }
 
+            sceneTargetRef.current = request.stepId;
+            setSceneSwapped(false);
+
             const started = runSceneTransition({
                 number: `0${index + 1}`,
                 word: request.label ?? steps[index].label,
@@ -281,8 +300,13 @@ function ShellView({
                     onSceneSwap?.(request.stepId);
                     request.onSwap?.();
                     setHold(null);
+                    setSceneSwapped(true);
                 },
-                onFinished: () => setBusy(false),
+                onFinished: () => {
+                    sceneTargetRef.current = null;
+                    setHold(null);
+                    setBusy(false);
+                },
             });
 
             if (started) {
@@ -327,6 +351,17 @@ function ShellView({
     const activeIndex = steps.findIndex((step) => step.id === displayId);
     const sceneIndex = activeIndex >= 0 ? String(activeIndex) : undefined;
     const view = hold ? hold.view : children;
+
+    // The overlay opens only after this screen commits the target content:
+    // a fresh mount (cross-page arrival under the layers) or — for runs owned
+    // by this shell — the swap followed by the displayed step reaching the
+    // target. An Inertia `onFinish` alone never satisfies the gate.
+    const sceneTarget = sceneTargetRef.current;
+    const sceneReady =
+        sceneTarget === null ||
+        (sceneSwapped && displayId === sceneTarget);
+
+    useSceneContentReady(sceneReady);
 
     const currentSessionId = () =>
         new URL(window.location.href).searchParams.get('session');
@@ -455,7 +490,10 @@ function ShellView({
             <ReadyContext.Provider value={setReady}>
                 <SceneContext.Provider value={scene}>
                     <div
-                        className="foho-root"
+                        className={cn(
+                            'foho-root',
+                            entranceBlocked && 'no-entrance',
+                        )}
                         data-theme="mono"
                         data-page={readyPage ? 'ready' : page}
                         data-scene={sceneIndex}

@@ -1,13 +1,16 @@
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { toast } from 'sonner';
 import {
     isPlainLeftClick,
+    isSceneRunning,
     navigateWithScene,
     readGeneratorReturn,
     uploadUrlFromReturn,
+    useSceneContentReady,
 } from '@/components/Labels/SceneTransition';
+import { cn } from '@/lib/utils';
 import '../../../css/foho.css';
 
 interface ImporterCard {
@@ -27,6 +30,12 @@ interface PageProps {
 export default function ImportersIndex({ importer }: Props) {
     const { flash } = usePage().props as PageProps;
     const toastedFlash = useRef<string | null>(null);
+    // Releasing the scene gate: this page committed its content (arrival
+    // under the closed layers of a menu transition, or a plain first load).
+    useSceneContentReady(true);
+    // Mounted under the closed layers → the hero/workspace entrance never
+    // replays and re-hides content the transition is about to reveal.
+    const [entranceBlocked] = useState(() => isSceneRunning());
 
     const { data, setData, put, processing, errors } = useForm({
         name: importer?.name ?? '',
@@ -88,7 +97,10 @@ export default function ImportersIndex({ importer }: Props) {
             <Head title="Реквизиты импортёра" />
 
             <div
-                className="foho-root"
+                className={cn(
+                    'foho-root',
+                    entranceBlocked && 'no-entrance',
+                )}
                 data-theme="mono"
                 data-page="importer"
                 data-scene="4"
