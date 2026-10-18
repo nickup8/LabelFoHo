@@ -10,9 +10,10 @@ import '../../../css/scene-transition.css';
  * The package appends `.scene-transition` to <body>; here it is a body
  * portal (mounted once at the app root, see app.tsx) with its own isolated
  * stylesheet, so it survives Inertia page swaps and stays outside the
- * `.foho-root` scoped CSS. Animation parameters are unchanged: 1120 ms
- * layers with `cubic-bezier(.76,0,.24,1)`, the stage closes for 470 ms and
- * reopens after the swap at 520 ms with a 720 ms perspective/blur reveal.
+ * `.foho-root` scoped CSS. Layers and the title keep the original enter/exit
+ * speeds; their shared full-cover hold is extended by 400 ms (`HOLD_EXTRA`)
+ * so the title stays readable ≈678 ms. The stage closes for 470 ms and
+ * reopens after the swap at 920 ms with a 720 ms perspective/blur reveal.
  *
  * Cross-page menu visits use `awaitContent`: layers freeze at full cover
  * after the swap moment until `releaseSceneContent()` (typically Inertia
@@ -32,7 +33,7 @@ export interface SceneRunOptions {
     number: string;
     word: string;
     /**
-     * After the 520 ms swap moment, pause the layers at full cover until
+     * After the swap moment, pause the layers at full cover until
      * `releaseSceneContent()` — used when the destination page is still
      * loading and must not be replaced by the outgoing scene on reveal.
      */
@@ -50,9 +51,37 @@ interface GeneratorReturn extends SceneTarget {
     url: string;
 }
 
-const SWAP_DELAY = 520;
-const LAYER_DURATION = 1120;
+/**
+ * Extra milliseconds of full cover shared by both layers and the title.
+ * Enter/exit segments keep their original absolute durations (same speed);
+ * only the mid-transition hold grows, and the swap/reveal shift with it.
+ */
+const HOLD_EXTRA = 400;
+const SWAP_DELAY = 520 + HOLD_EXTRA;
+const BASE_LAYER_DURATION = 1120;
+const BASE_TYPE_DURATION = 1030;
 const EASE = 'cubic-bezier(.76,0,.24,1)';
+
+/**
+ * Rebuilds keyframe offsets so enter and exit keep the same absolute time as
+ * the original timing; the hold between them absorbs `HOLD_EXTRA`.
+ */
+function withHold(
+    baseDuration: number,
+    enterAt: number,
+    holdUntil: number,
+): { duration: number; enterOffset: number; holdOffset: number } {
+    const enterMs = baseDuration * enterAt;
+    const holdMs = baseDuration * (holdUntil - enterAt);
+    const exitMs = baseDuration * (1 - holdUntil);
+    const total = enterMs + holdMs + HOLD_EXTRA + exitMs;
+
+    return {
+        duration: total,
+        enterOffset: enterMs / total,
+        holdOffset: (enterMs + holdMs + HOLD_EXTRA) / total,
+    };
+}
 
 let parts: OverlayParts | null = null;
 let running = false;
@@ -214,11 +243,9 @@ export function runSceneTransition({
     numberEl.textContent = number;
     wordEl.textContent = word;
 
-    const layerOptions: KeyframeAnimationOptions = {
-        duration: LAYER_DURATION,
-        easing: EASE,
-        fill: 'both',
-    };
+    const layerOneHold = withHold(BASE_LAYER_DURATION, 0.43, 0.58);
+    const layerTwoHold = withHold(BASE_LAYER_DURATION, 0.48, 0.61);
+    const typeHold = withHold(BASE_TYPE_DURATION, 0.35, 0.62);
 
     const layerOne = one.animate(
         [
@@ -229,35 +256,60 @@ export function runSceneTransition({
             {
                 transform: 'translateY(0) rotate(0)',
                 borderRadius: '0',
-                offset: 0.43,
+                offset: layerOneHold.enterOffset,
             },
-            { transform: 'translateY(0)', offset: 0.58 },
+            { transform: 'translateY(0)', offset: layerOneHold.holdOffset },
             {
                 transform: 'translateY(-110%) rotate(3deg)',
                 borderRadius: '0 0 46% 46%',
             },
         ],
-        layerOptions,
+        {
+            duration: layerOneHold.duration,
+            easing: EASE,
+            fill: 'both',
+        },
     );
 
     const layerTwo = two.animate(
         [
             { transform: 'translateY(112%) rotate(3deg)' },
-            { transform: 'translateY(0) rotate(0)', offset: 0.48 },
-            { transform: 'translateY(0)', offset: 0.61 },
+            {
+                transform: 'translateY(0) rotate(0)',
+                offset: layerTwoHold.enterOffset,
+            },
+            { transform: 'translateY(0)', offset: layerTwoHold.holdOffset },
             { transform: 'translateY(-112%) rotate(-3deg)' },
         ],
-        { ...layerOptions, delay: 55 },
+        {
+            duration: layerTwoHold.duration,
+            easing: EASE,
+            fill: 'both',
+            delay: 55,
+        },
     );
 
     const typeAnim = type.animate(
         [
             { opacity: 0, transform: 'translateY(48px)' },
-            { opacity: 1, transform: 'translateY(0)', offset: 0.35 },
-            { opacity: 1, transform: 'translateY(0)', offset: 0.62 },
+            {
+                opacity: 1,
+                transform: 'translateY(0)',
+                offset: typeHold.enterOffset,
+            },
+            {
+                opacity: 1,
+                transform: 'translateY(0)',
+                offset: typeHold.holdOffset,
+            },
             { opacity: 0, transform: 'translateY(-60px)' },
         ],
-        { ...layerOptions, duration: 1030, delay: 60 },
+        {
+            duration: typeHold.duration,
+            easing: EASE,
+            fill: 'both',
+            delay: 60,
+        },
     );
 
     stageElement()?.animate(

@@ -258,7 +258,7 @@ function ShellView({
     const [ready, setReady] = useState(false);
     // While a transition is closing the old scene, the previous step and its
     // stage content stay on screen; the swap to the latest props happens under
-    // the overlay at 520 ms (motion.js `change()` timing).
+    // the overlay at the SceneTransition swap moment.
     const [hold, setHold] = useState<{
         view: ReactNode;
         stepId: number;
