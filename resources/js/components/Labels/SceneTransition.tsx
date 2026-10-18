@@ -10,12 +10,18 @@ import '../../../css/scene-transition.css';
  * The package appends `.scene-transition` to <body>; here it is a body
  * portal (mounted once at the app root, see app.tsx) with its own isolated
  * stylesheet, so it survives Inertia page swaps and stays outside the
- * `.foho-root` scoped CSS. Animation keyframes match motion.js: 1120 ms
- * layers with `cubic-bezier(.76,0,.24,1)`, the stage closes for 470 ms and
- * reopens after the swap at 520 ms with a 720 ms perspective/blur reveal.
- * At ≈535 ms (title fully visible) layers and title pause together for an
- * extra 400 ms hold; with `awaitContent` the resume also waits for
- * `releaseSceneContent()` so a slow response never reveals the outgoing page.
+ * `.foho-root` scoped CSS.
+ *
+ * Phases run strictly in order via `Animation.finished` (no pause/play):
+ * 1. CLOSE — both layers rise to cover the viewport (500 ms + 55 ms stagger).
+ * 2. TITLE + SWAP — number/word fade in (180 ms), `onSwap` fires once under
+ *    the closed layers, then the title holds still for a readable pause
+ *    (650 ms). With `awaitContent` the open phase also waits for
+ *    `releaseSceneContent()`; an early response never shortens the pause
+ *    and never restarts animations.
+ * 3. OPEN — title exits (180 ms) while layers leave upward (500 ms +
+ *    55 ms stagger) and the stage is revealed with them. The overlay is
+ *    removed only after both layer animations finish.
  */
 
 interface OverlayParts {
@@ -31,10 +37,10 @@ export interface SceneRunOptions {
     number: string;
     word: string;
     /**
-     * Hold the shared full-cover pause until both the extra 400 ms have
-     * elapsed and `releaseSceneContent()` is called (typically Inertia
-     * `onFinish`) — used when the destination page is still loading and
-     * must not be replaced by the outgoing scene on reveal.
+     * Also wait for `releaseSceneContent()` (typically Inertia `onFinish`)
+     * before the open phase — used when the destination page is still
+     * loading and must not be revealed early. A slow response never
+     * starts or restarts animations; it only delays the open gate.
      */
     awaitContent?: boolean;
     onSwap?: () => void;
@@ -50,19 +56,19 @@ interface GeneratorReturn extends SceneTarget {
     url: string;
 }
 
-const SWAP_DELAY = 520;
-const LAYER_DURATION = 1120;
+const CLOSE_MS = 500;
+const OPEN_MS = 500;
+const TITLE_MS = 180;
+const LAYER_STAGGER = 55;
+/** Minimum readable hold of the fully visible title before the open phase. */
+const READ_MS = 650;
 const EASE = 'cubic-bezier(.76,0,.24,1)';
-/** Wall-clock moment when the title is fully visible (measured ≈535 ms). */
-const PAUSE_AT = 535;
-/** Extra full-cover hold added to the original keyframe hold. */
-const HOLD_MS = 400;
 
 let parts: OverlayParts | null = null;
 let running = false;
 let releaseWaiter: (() => void) | null = null;
-let releasedDuringHold = false;
-let clearRunTimers: (() => void) | null = null;
+let contentReleased = false;
+let clearRun: (() => void) | null = null;
 let generatorReturn: GeneratorReturn | null = null;
 
 function prefersReducedMotion(): boolean {
@@ -154,7 +160,7 @@ export function navigateWithScene(url: string, scene: SceneTarget): boolean {
  * Safe to call when nothing is waiting (e.g. reduced-motion visits).
  */
 export function releaseSceneContent(): void {
-    releasedDuringHold = true;
+    contentReleased = true;
 
     const waiter = releaseWaiter;
 
@@ -173,12 +179,78 @@ function cancelStageAnimations(): void {
 }
 
 function deactivate(): void {
-    clearRunTimers?.();
-    clearRunTimers = null;
+    clearRun?.();
+    clearRun = null;
     document.body.classList.remove('scene-changing');
     parts?.overlay.classList.remove('active');
     parts?.overlay.getAnimations({ subtree: true }).forEach((a) => a.cancel());
     cancelStageAnimations();
+}
+
+function waitAnimation(animation: Animation): Promise<void> {
+    return animation.finished.then(
+        () => undefined,
+        () => undefined,
+    );
+}
+
+function animateTo(
+    element: Element,
+    keyframes: Keyframe[],
+    options: KeyframeAnimationOptions,
+): Promise<void> {
+    return waitAnimation(element.animate(keyframes, options));
+}
+
+function waitReadablePause(): Promise<void> {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, READ_MS);
+    });
+}
+
+function waitContentRelease(): Promise<void> {
+    if (contentReleased) {
+        return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+        releaseWaiter = () => resolve();
+    });
+}
+
+function revealStage(): void {
+    // Reveal the stage after React has committed the swapped scene.
+    requestAnimationFrame(() => {
+        const fresh = stageElement();
+
+        if (!fresh || !running) {
+            return;
+        }
+
+        fresh.getAnimations().forEach((a) => a.cancel());
+        fresh.animate(
+            [
+                {
+                    opacity: 0,
+                    transform:
+                        'perspective(900px) translateY(45px) rotateX(-5deg)',
+                    filter: 'blur(8px)',
+                },
+                {
+                    opacity: 1,
+                    transform:
+                        'perspective(900px) translateY(0) rotateX(0)',
+                    filter: 'blur(0)',
+                },
+            ],
+            {
+                duration: 720,
+                delay: 80,
+                easing: 'cubic-bezier(.16,1,.3,1)',
+                fill: 'both',
+            },
+        );
+    });
 }
 
 /**
@@ -188,7 +260,7 @@ function deactivate(): void {
  * so callers never wait on animation, except when a transition is already
  * running: then the call is ignored so a second click cannot start a visit.
  * Requests are never delayed by this helper unless `awaitContent` extends
- * the shared full-cover pause until `releaseSceneContent()`.
+ * the readable title pause until `releaseSceneContent()`.
  */
 export function runSceneTransition({
     number,
@@ -212,7 +284,7 @@ export function runSceneTransition({
 
     running = true;
     releaseWaiter = null;
-    releasedDuringHold = false;
+    contentReleased = false;
 
     const { overlay, one, two, type, numberEl, wordEl } = overlayParts;
 
@@ -221,51 +293,28 @@ export function runSceneTransition({
     numberEl.textContent = number;
     wordEl.textContent = word;
 
-    const layerOptions: KeyframeAnimationOptions = {
-        duration: LAYER_DURATION,
-        easing: EASE,
-        fill: 'both',
+    let cancelled = false;
+
+    clearRun = () => {
+        cancelled = true;
+
+        // Unblock an in-flight awaitContent wait; the cancelled flag stops
+        // the sequence before any further animation is created.
+        const waiter = releaseWaiter;
+
+        releaseWaiter = null;
+        waiter?.();
     };
 
-    const layerOne = one.animate(
-        [
-            {
-                transform: 'translateY(108%) rotate(-4deg)',
-                borderRadius: '48% 48% 0 0',
-            },
-            {
-                transform: 'translateY(0) rotate(0)',
-                borderRadius: '0',
-                offset: 0.43,
-            },
-            { transform: 'translateY(0)', offset: 0.58 },
-            {
-                transform: 'translateY(-110%) rotate(3deg)',
-                borderRadius: '0 0 46% 46%',
-            },
-        ],
-        layerOptions,
-    );
+    const settle = () => {
+        if (!running || cancelled) {
+            return;
+        }
 
-    const layerTwo = two.animate(
-        [
-            { transform: 'translateY(112%) rotate(3deg)' },
-            { transform: 'translateY(0) rotate(0)', offset: 0.48 },
-            { transform: 'translateY(0)', offset: 0.61 },
-            { transform: 'translateY(-112%) rotate(-3deg)' },
-        ],
-        { ...layerOptions, delay: 55 },
-    );
-
-    const typeAnim = type.animate(
-        [
-            { opacity: 0, transform: 'translateY(48px)' },
-            { opacity: 1, transform: 'translateY(0)', offset: 0.35 },
-            { opacity: 1, transform: 'translateY(0)', offset: 0.62 },
-            { opacity: 0, transform: 'translateY(-60px)' },
-        ],
-        { ...layerOptions, duration: 1030, delay: 60 },
-    );
+        running = false;
+        deactivate();
+        onFinished?.();
+    };
 
     stageElement()?.animate(
         [
@@ -283,129 +332,129 @@ export function runSceneTransition({
         { duration: 470, fill: 'both', easing: 'ease-in' },
     );
 
-    let swapTimer = 0;
-    let pauseTimer = 0;
-    let holdTimer = 0;
-    let settleTimer = 0;
-    let settled = false;
-    let resumed = false;
-    let holdElapsed = false;
-    let contentReady = false;
+    void (async () => {
+        try {
+            // 1. Close: both layers from their bottom poses to full cover.
+            const close: KeyframeAnimationOptions = {
+                duration: CLOSE_MS,
+                easing: EASE,
+                fill: 'both',
+            };
 
-    const clearTimers = () => {
-        clearTimeout(swapTimer);
-        clearTimeout(pauseTimer);
-        clearTimeout(holdTimer);
-        clearTimeout(settleTimer);
-    };
+            await Promise.all([
+                animateTo(
+                    one,
+                    [
+                        {
+                            transform: 'translateY(108%) rotate(-4deg)',
+                            borderRadius: '48% 48% 0 0',
+                        },
+                        {
+                            transform: 'translateY(0) rotate(0)',
+                            borderRadius: '0',
+                        },
+                    ],
+                    close,
+                ),
+                animateTo(
+                    two,
+                    [
+                        { transform: 'translateY(112%) rotate(3deg)' },
+                        { transform: 'translateY(0) rotate(0)' },
+                    ],
+                    { ...close, delay: LAYER_STAGGER },
+                ),
+            ]);
 
-    clearRunTimers = clearTimers;
-
-    const revealStage = () => {
-        // Reveal the stage after React has committed the swapped scene.
-        requestAnimationFrame(() => {
-            const fresh = stageElement();
-
-            if (!fresh || settled) {
+            if (cancelled) {
                 return;
             }
 
-            fresh.getAnimations().forEach((a) => a.cancel());
-            fresh.animate(
+            // 2. Title in, then the page swap under the closed layers.
+            await animateTo(
+                type,
                 [
-                    {
-                        opacity: 0,
-                        transform:
-                            'perspective(900px) translateY(45px) rotateX(-5deg)',
-                        filter: 'blur(8px)',
-                    },
-                    {
-                        opacity: 1,
-                        transform:
-                            'perspective(900px) translateY(0) rotateX(0)',
-                        filter: 'blur(0)',
-                    },
+                    { opacity: 0, transform: 'translateY(16px)' },
+                    { opacity: 1, transform: 'translateY(0)' },
                 ],
-                {
-                    duration: 720,
-                    delay: 80,
-                    easing: 'cubic-bezier(.16,1,.3,1)',
-                    fill: 'both',
-                },
+                { duration: TITLE_MS, easing: EASE, fill: 'both' },
             );
-        });
-    };
 
-    const resumeLayers = () => {
-        if (resumed || settled) {
-            return;
-        }
-
-        // With awaitContent the shared pause also waits for the response so
-        // a slow visit never reveals the outgoing page under the layers.
-        if (!holdElapsed || (awaitContent && !contentReady)) {
-            return;
-        }
-
-        resumed = true;
-        releaseWaiter = null;
-        layerOne.play();
-        layerTwo.play();
-        typeAnim.play();
-        revealStage();
-    };
-
-    const settle = () => {
-        if (settled) {
-            return;
-        }
-
-        settled = true;
-        clearTimers();
-        releaseWaiter = null;
-        deactivate();
-        running = false;
-        onFinished?.();
-    };
-
-    swapTimer = window.setTimeout(() => {
-        onSwap?.();
-    }, SWAP_DELAY);
-
-    // Synchronous full-cover pause of both layers and the title while the
-    // title is fully visible; resume only after HOLD_MS and (if awaited)
-    // after the content response.
-    pauseTimer = window.setTimeout(() => {
-        layerOne.pause();
-        layerTwo.pause();
-        typeAnim.pause();
-
-        if (awaitContent) {
-            if (releasedDuringHold) {
-                contentReady = true;
-            } else {
-                releaseWaiter = () => {
-                    contentReady = true;
-                    resumeLayers();
-                };
+            if (cancelled) {
+                return;
             }
+
+            onSwap?.();
+
+            if (cancelled) {
+                return;
+            }
+
+            // Readable pause on the fully visible title; awaitContent also
+            // waits for the response. A late release never restarts motion.
+            await Promise.all([
+                waitReadablePause(),
+                awaitContent ? waitContentRelease() : Promise.resolve(),
+            ]);
+
+            if (cancelled) {
+                return;
+            }
+
+            // 3. Title out and layers open together; reveal the new stage.
+            const open: KeyframeAnimationOptions = {
+                duration: OPEN_MS,
+                easing: EASE,
+                fill: 'both',
+            };
+
+            const layersOpening = Promise.all([
+                animateTo(
+                    one,
+                    [
+                        {
+                            transform: 'translateY(0) rotate(0)',
+                            borderRadius: '0',
+                        },
+                        {
+                            transform: 'translateY(-110%) rotate(3deg)',
+                            borderRadius: '0 0 46% 46%',
+                        },
+                    ],
+                    open,
+                ),
+                animateTo(
+                    two,
+                    [
+                        { transform: 'translateY(0) rotate(0)' },
+                        { transform: 'translateY(-112%) rotate(-3deg)' },
+                    ],
+                    { ...open, delay: LAYER_STAGGER },
+                ),
+            ]);
+
+            const titleClosing = animateTo(
+                type,
+                [
+                    { opacity: 1, transform: 'translateY(0)' },
+                    { opacity: 0, transform: 'translateY(-16px)' },
+                ],
+                { duration: TITLE_MS, easing: EASE, fill: 'both' },
+            );
+
+            revealStage();
+
+            await Promise.all([layersOpening, titleClosing]);
+
+            if (cancelled) {
+                return;
+            }
+
+            settle();
+        } catch {
+            settle();
         }
-
-        holdTimer = window.setTimeout(() => {
-            holdElapsed = true;
-            resumeLayers();
-        }, HOLD_MS);
-    }, PAUSE_AT);
-
-    layerOne.finished
-        .then(
-            () =>
-                new Promise((resolve) => {
-                    settleTimer = window.setTimeout(resolve, 75);
-                }),
-        )
-        .then(settle)
-        .catch(settle);
+    })();
 
     return true;
 }
