@@ -1,4 +1,6 @@
+import { router } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import '../../../css/scene-transition.css';
 
@@ -11,6 +13,10 @@ import '../../../css/scene-transition.css';
  * `.foho-root` scoped CSS. Animation parameters are unchanged: 1120 ms
  * layers with `cubic-bezier(.76,0,.24,1)`, the stage closes for 470 ms and
  * reopens after the swap at 520 ms with a 720 ms perspective/blur reveal.
+ *
+ * Cross-page menu visits use `awaitContent`: layers freeze at full cover
+ * after the swap moment until `releaseSceneContent()` (typically Inertia
+ * `onFinish`), so a slow response never reveals the outgoing page.
  */
 
 interface OverlayParts {
@@ -25,8 +31,23 @@ interface OverlayParts {
 export interface SceneRunOptions {
     number: string;
     word: string;
+    /**
+     * After the 520 ms swap moment, pause the layers at full cover until
+     * `releaseSceneContent()` — used when the destination page is still
+     * loading and must not be replaced by the outgoing scene on reveal.
+     */
+    awaitContent?: boolean;
     onSwap?: () => void;
     onFinished?: () => void;
+}
+
+export interface SceneTarget {
+    number: string;
+    word: string;
+}
+
+interface GeneratorReturn extends SceneTarget {
+    url: string;
 }
 
 const SWAP_DELAY = 520;
@@ -35,9 +56,105 @@ const EASE = 'cubic-bezier(.76,0,.24,1)';
 
 let parts: OverlayParts | null = null;
 let running = false;
+let releaseWaiter: (() => void) | null = null;
+let releasedDuringHold = false;
+let generatorReturn: GeneratorReturn | null = null;
 
 function prefersReducedMotion(): boolean {
     return matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** True for a plain left-click (no modifier / middle-click). */
+export function isPlainLeftClick(event: ReactMouseEvent): boolean {
+    return (
+        event.button === 0 &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        !event.altKey
+    );
+}
+
+/** Remembers the generator step URL shown before leaving for the importer. */
+export function rememberGeneratorReturn(entry: GeneratorReturn): void {
+    generatorReturn = entry;
+}
+
+/** Last generator step, or the upload screen when nothing was remembered. */
+export function readGeneratorReturn(): GeneratorReturn {
+    return (
+        generatorReturn ?? {
+            number: '01',
+            word: 'Загрузка',
+            url: '/labels',
+        }
+    );
+}
+
+/** Upload URL for a generator return entry, keeping the saved session. */
+export function uploadUrlFromReturn(
+    entry: GeneratorReturn = readGeneratorReturn(),
+): string {
+    const session = new URL(entry.url, window.location.origin).searchParams.get(
+        'session',
+    );
+
+    return session
+        ? `/labels?session=${encodeURIComponent(session)}&step=1`
+        : '/labels';
+}
+
+function isSameDestination(url: string): boolean {
+    const target = new URL(url, window.location.origin);
+    const current = new URL(window.location.href);
+
+    if (target.pathname !== current.pathname) {
+        return false;
+    }
+
+    if (target.pathname.startsWith('/importers')) {
+        return true;
+    }
+
+    const targetStep = target.searchParams.get('step') ?? '1';
+    const currentStep = current.searchParams.get('step') ?? '1';
+
+    return targetStep === currentStep;
+}
+
+/**
+ * Runs the scene transition and visits `url` under the closed layers.
+ * Skips the visit when the destination is the current page or another
+ * transition is already in flight. Reduced motion visits instantly.
+ */
+export function navigateWithScene(url: string, scene: SceneTarget): boolean {
+    if (running || isSameDestination(url)) {
+        return false;
+    }
+
+    return runSceneTransition({
+        number: scene.number,
+        word: scene.word,
+        awaitContent: true,
+        onSwap: () => {
+            router.visit(url, {
+                onFinish: () => releaseSceneContent(),
+            });
+        },
+    });
+}
+
+/**
+ * Resumes a transition paused by `awaitContent`. Safe to call when nothing
+ * is waiting (e.g. reduced-motion visits that never paused).
+ */
+export function releaseSceneContent(): void {
+    releasedDuringHold = true;
+
+    const waiter = releaseWaiter;
+
+    releaseWaiter = null;
+    waiter?.();
 }
 
 function stageElement(): HTMLElement | null {
@@ -61,24 +178,25 @@ function deactivate(): void {
  * Runs the standard scene transition. Returns false when the animation was
  * skipped (reduced motion, no Web Animations API, overlay not mounted, or a
  * transition is already in flight) — in that case `onSwap` fires immediately
- * so callers never wait on animation. Requests are never delayed by this
- * helper: callers fire navigation themselves and only the visual swap of the
- * scene is choreographed here.
+ * so callers never wait on animation, except when a transition is already
+ * running: then the call is ignored so a second click cannot start a visit.
+ * Requests are never delayed by this helper unless `awaitContent` holds the
+ * layers until `releaseSceneContent()`.
  */
 export function runSceneTransition({
     number,
     word,
+    awaitContent,
     onSwap,
     onFinished,
 }: SceneRunOptions): boolean {
+    if (running) {
+        return false;
+    }
+
     const overlayParts = parts;
 
-    if (
-        !overlayParts ||
-        prefersReducedMotion() ||
-        !Element.prototype.animate ||
-        running
-    ) {
+    if (!overlayParts || prefersReducedMotion() || !Element.prototype.animate) {
         onSwap?.();
         onFinished?.();
 
@@ -86,6 +204,8 @@ export function runSceneTransition({
     }
 
     running = true;
+    releaseWaiter = null;
+    releasedDuringHold = false;
 
     const { overlay, one, two, type, numberEl, wordEl } = overlayParts;
 
@@ -120,7 +240,7 @@ export function runSceneTransition({
         layerOptions,
     );
 
-    two.animate(
+    const layerTwo = two.animate(
         [
             { transform: 'translateY(112%) rotate(3deg)' },
             { transform: 'translateY(0) rotate(0)', offset: 0.48 },
@@ -130,7 +250,7 @@ export function runSceneTransition({
         { ...layerOptions, delay: 55 },
     );
 
-    type.animate(
+    const typeAnim = type.animate(
         [
             { opacity: 0, transform: 'translateY(48px)' },
             { opacity: 1, transform: 'translateY(0)', offset: 0.35 },
@@ -158,22 +278,9 @@ export function runSceneTransition({
 
     let swapTimer = 0;
     let settled = false;
+    let resumed = false;
 
-    const settle = () => {
-        if (settled) {
-            return;
-        }
-
-        settled = true;
-        clearTimeout(swapTimer);
-        deactivate();
-        running = false;
-        onFinished?.();
-    };
-
-    swapTimer = window.setTimeout(() => {
-        onSwap?.();
-
+    const revealStage = () => {
         // Reveal the stage after React has committed the swapped scene.
         requestAnimationFrame(() => {
             const fresh = stageElement();
@@ -206,6 +313,54 @@ export function runSceneTransition({
                 },
             );
         });
+    };
+
+    const resumeLayers = () => {
+        if (resumed || settled) {
+            return;
+        }
+
+        resumed = true;
+        releaseWaiter = null;
+        layerOne.play();
+        layerTwo.play();
+        typeAnim.play();
+        revealStage();
+    };
+
+    const settle = () => {
+        if (settled) {
+            return;
+        }
+
+        settled = true;
+        clearTimeout(swapTimer);
+        releaseWaiter = null;
+        deactivate();
+        running = false;
+        onFinished?.();
+    };
+
+    swapTimer = window.setTimeout(() => {
+        if (awaitContent) {
+            // Freeze at full cover so a slow Inertia response never shows
+            // the outgoing page when the layers open again.
+            layerOne.pause();
+            layerTwo.pause();
+            typeAnim.pause();
+            onSwap?.();
+
+            if (releasedDuringHold) {
+                resumeLayers();
+            } else {
+                releaseWaiter = resumeLayers;
+            }
+
+            return;
+        }
+
+        onSwap?.();
+        revealStage();
     }, SWAP_DELAY);
 
     layerOne.finished
@@ -245,6 +400,7 @@ export default function SceneTransitionHost() {
 
         return () => {
             parts = null;
+            releaseWaiter = null;
 
             if (running) {
                 running = false;
