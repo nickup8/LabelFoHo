@@ -43,6 +43,9 @@ export const NORMAL_BOTTOM_MIN = 24;
 const DATA_X = 44.0; // левое поле бокса
 const DATA_TOP = 20.7; // верх бокса заголовка
 const DATA_W = 372; // ширина текстового столбца
+// Строка артикула шире столбца: Inter 32 Bold «Артикул: RKK006…» требует
+// < 379 pt, иначе перенос на вторую строку. До правого блока (EAC от 451.3) не доходит.
+const ARTICLE_W = 380;
 const BLOCK_GAP = 10; // зазор между информационными блоками
 
 /** Геометрия для внешнего замера нижнего поля (используется выборщиком режима). */
@@ -184,6 +187,7 @@ const styles = StyleSheet.create({
         fontWeight: 700,
         lineHeight: LH_ARTICLE,
         color: COLOR_HEAD,
+        width: ARTICLE_W,
     },
     field: {
         fontSize: 16,
