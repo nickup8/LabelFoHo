@@ -244,7 +244,7 @@
 
 @keyframes upload-perimeter{to{stroke-dashoffset:-100}}
 @keyframes upload-target-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:620px){:where(.foho-root) .drop.disabled h2{font-size:17px;margin:0}:where(.foho-root) .drop.awaiting-file h2{font-size:18px}:where(.foho-root) .upload-border rect{rx:17px}}
+@media(max-width:620px){:where(.foho-root) .drop.disabled h2{font-size:17px;margin:0}:where(.foho-root) .drop.awaiting-file h2{font-size:18px}:where(.foho-root) .upload-border rect{rx:16px}}
 
 /* Keep the target outline visible and the upload icon upright. */
 .foho-root[data-theme="mono"][data-page="upload"] .drop{border-color:#0000002b}

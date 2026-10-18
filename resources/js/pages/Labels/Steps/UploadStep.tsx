@@ -456,7 +456,7 @@ export default function UploadStep({
                             className="upload-border"
                             aria-hidden="true"
                         >
-                            <rect x="1" y="1" rx="21" pathLength={100} />
+                            <rect x="1" y="1" rx="20" pathLength={100} />
                         </svg>
                         <div className="upload-symbol">{uploadIcon}</div>
                         <h2>Перетащите файл сюда</h2>
