@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import '../../../css/scene-transition.css';
@@ -10,26 +10,14 @@ import '../../../css/scene-transition.css';
  * The package appends `.scene-transition` to <body>; here it is a body
  * portal (mounted once at the app root, see app.tsx) with its own isolated
  * stylesheet, so it survives Inertia page swaps and stays outside the
- * `.foho-root` scoped CSS. Colors and layer geometry are unchanged.
+ * `.foho-root` scoped CSS. Animation parameters are unchanged: 1120 ms
+ * layers with `cubic-bezier(.76,0,.24,1)`, the stage closes for 470 ms and
+ * reopens after the swap at 520 ms with a 720 ms perspective/blur reveal.
  *
- * Phases run strictly in order via `Animation.finished` (no pause/play, no
- * shared timeline, no swap timer):
- * 1. CLOSE — both layers rise to cover the viewport (360 ms, second layer
- *    delayed by 30 ms); the phase waits for both `finished` promises.
- * 2. TITLE + SWAP — `onSwap` fires once under the closed layers, then the
- *    number/word appear over 100 ms (opacity 0→1, translateY 12px→0).
- * 3. HOLD — the title stays still for at least 220 ms while the transition
- *    waits for the destination screen's readiness signal (see
- *    `useSceneContentReady`). A slow response only extends the closed state.
- * 4. OPEN — layers leave upward (360 ms, second delayed by 30 ms) while the
- *    title exits over 130 ms (opacity 1→0, translateY 0→−12px). The overlay
- *    is removed after both layers finish.
- *
- * Page content is never animated: the old `.stage` opacity/blur/transform
- * WAAPI choreography is gone, and the open phase reveals whatever the
- * destination screen committed. Inertia request errors (`error`,
- * `networkError`, `httpException`) abort the run so a failed visit frees the
- * overlay and the repeat-click lock.
+ * Inertia request errors (`error`, `networkError`, `httpException`) abort a
+ * run in flight: settle then drops the pending swap and reveal timers and
+ * cancels the overlay and `.stage` animations, so a failed visit frees the
+ * overlay and the repeat-click lock and a cancelled run never fires `onSwap`.
  */
 
 interface OverlayParts {
@@ -44,7 +32,7 @@ interface OverlayParts {
 export interface SceneRunOptions {
     number: string;
     word: string;
-    /** Fires once under the fully closed layers — swap content here. */
+    /** Fires once at 520 ms while the layers sweep over the viewport. */
     onSwap?: () => void;
     onFinished?: () => void;
 }
@@ -58,27 +46,34 @@ interface GeneratorReturn extends SceneTarget {
     url: string;
 }
 
-const CLOSE_MS = 360;
-const CLOSE_STAGGER = 30;
-const TITLE_IN_MS = 100;
-/** Minimum time the fully visible title stays still before the open phase. */
-const TITLE_HOLD_MS = 220;
-const TITLE_OUT_MS = 130;
-const OPEN_MS = 360;
-const OPEN_STAGGER = 30;
+const SWAP_DELAY = 520;
+const LAYER_DURATION = 1120;
 const EASE = 'cubic-bezier(.76,0,.24,1)';
 
 let parts: OverlayParts | null = null;
 let running = false;
-/** Increments per run; readiness signals carry the id they saw at render. */
-let sceneId = 0;
-let awaitingReady = false;
-let readyWaiter: (() => void) | null = null;
 let abortRun: (() => void) | null = null;
 let generatorReturn: GeneratorReturn | null = null;
 
 function prefersReducedMotion(): boolean {
     return matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function stageElement(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.stage');
+}
+
+function cancelStageAnimations(): void {
+    document
+        .querySelectorAll<HTMLElement>('.stage')
+        .forEach((stage) => stage.getAnimations().forEach((a) => a.cancel()));
+}
+
+function deactivate(overlay: HTMLDivElement): void {
+    document.body.classList.remove('scene-changing');
+    overlay.classList.remove('active');
+    overlay.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+    cancelStageAnimations();
 }
 
 /** True for a plain left-click (no modifier / middle-click). */
@@ -164,76 +159,11 @@ export function navigateWithScene(url: string, scene: SceneTarget): boolean {
 }
 
 /**
- * Called by the destination screen from `useLayoutEffect` after its content
- * has committed: the open phase waits for this signal instead of an Inertia
- * `onFinish`. The signal carries the transition id captured at render, so a
- * stale signal from an earlier run is ignored.
- */
-export function signalSceneContentReady(id: number): void {
-    if (!awaitingReady || id !== sceneId) {
-        return;
-    }
-
-    awaitingReady = false;
-
-    const waiter = readyWaiter;
-
-    readyWaiter = null;
-    waiter?.();
-}
-
-/**
- * Screen-side readiness signal. Fires from `useLayoutEffect` only when
- * `enabled` flips true (or on mount), so unrelated re-renders of a mounted
- * screen never release another screen's transition.
+ * Kept for existing callers: the restored timeline opens on its own
+ * schedule, so screens no longer release a readiness gate.
  */
 export function useSceneContentReady(enabled = true): void {
-    const idRef = useRef(sceneId);
-
-    idRef.current = sceneId;
-
-    useLayoutEffect(() => {
-        if (enabled) {
-            signalSceneContentReady(idRef.current);
-        }
-    }, [enabled]);
-}
-
-function waitAnimation(animation: Animation): Promise<void> {
-    return animation.finished.then(
-        () => undefined,
-        () => undefined,
-    );
-}
-
-function animateTo(
-    element: Element,
-    keyframes: Keyframe[],
-    options: KeyframeAnimationOptions,
-): Promise<void> {
-    return waitAnimation(element.animate(keyframes, options));
-}
-
-function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => {
-        window.setTimeout(resolve, ms);
-    });
-}
-
-function waitContentReady(): Promise<void> {
-    if (!awaitingReady) {
-        return Promise.resolve();
-    }
-
-    return new Promise((resolve) => {
-        readyWaiter = resolve;
-    });
-}
-
-function deactivate(overlay: HTMLDivElement): void {
-    document.body.classList.remove('scene-changing');
-    overlay.classList.remove('active');
-    overlay.getAnimations({ subtree: true }).forEach((a) => a.cancel());
+    void enabled;
 }
 
 /**
@@ -242,8 +172,8 @@ function deactivate(overlay: HTMLDivElement): void {
  * transition is already in flight) — in that case `onSwap` fires immediately
  * so callers never wait on animation, except when a transition is already
  * running: then the call is ignored so a second click cannot start a visit.
- * The request itself is started by the caller right away or at `onSwap`;
- * only the open phase waits for `useSceneContentReady`.
+ * Requests are never delayed by this helper: callers fire navigation
+ * themselves and only the visual swap of the scene is choreographed here.
  */
 export function runSceneTransition({
     number,
@@ -265,9 +195,6 @@ export function runSceneTransition({
     }
 
     running = true;
-    sceneId += 1;
-    awaitingReady = true;
-    readyWaiter = null;
 
     const { overlay, one, two, type, numberEl, wordEl } = overlayParts;
 
@@ -276,7 +203,71 @@ export function runSceneTransition({
     numberEl.textContent = number;
     wordEl.textContent = word;
 
-    let cancelled = false;
+    const layerOptions: KeyframeAnimationOptions = {
+        duration: LAYER_DURATION,
+        easing: EASE,
+        fill: 'both',
+    };
+
+    const layerOne = one.animate(
+        [
+            {
+                transform: 'translateY(108%) rotate(-4deg)',
+                borderRadius: '48% 48% 0 0',
+            },
+            {
+                transform: 'translateY(0) rotate(0)',
+                borderRadius: '0',
+                offset: 0.43,
+            },
+            { transform: 'translateY(0)', offset: 0.58 },
+            {
+                transform: 'translateY(-110%) rotate(3deg)',
+                borderRadius: '0 0 46% 46%',
+            },
+        ],
+        layerOptions,
+    );
+
+    two.animate(
+        [
+            { transform: 'translateY(112%) rotate(3deg)' },
+            { transform: 'translateY(0) rotate(0)', offset: 0.48 },
+            { transform: 'translateY(0)', offset: 0.61 },
+            { transform: 'translateY(-112%) rotate(-3deg)' },
+        ],
+        { ...layerOptions, delay: 55 },
+    );
+
+    type.animate(
+        [
+            { opacity: 0, transform: 'translateY(48px)' },
+            { opacity: 1, transform: 'translateY(0)', offset: 0.35 },
+            { opacity: 1, transform: 'translateY(0)', offset: 0.62 },
+            { opacity: 0, transform: 'translateY(-60px)' },
+        ],
+        { ...layerOptions, duration: 1030, delay: 60 },
+    );
+
+    stageElement()?.animate(
+        [
+            {
+                opacity: 1,
+                transform: 'perspective(900px) translateZ(0)',
+                filter: 'blur(0)',
+            },
+            {
+                opacity: 0,
+                transform: 'perspective(900px) translateZ(-65px) rotateX(5deg)',
+                filter: 'blur(7px)',
+            },
+        ],
+        { duration: 470, fill: 'both', easing: 'ease-in' },
+    );
+
+    let swapTimer = 0;
+    let settleTimer = 0;
+    let revealRaf = 0;
     let settled = false;
 
     const settle = () => {
@@ -285,159 +276,69 @@ export function runSceneTransition({
         }
 
         settled = true;
-        cancelled = true;
-        awaitingReady = false;
-        readyWaiter = null;
-        abortRun = null;
+        clearTimeout(swapTimer);
+        clearTimeout(settleTimer);
+
+        if (revealRaf) {
+            cancelAnimationFrame(revealRaf);
+        }
+
         deactivate(overlay);
         running = false;
+        abortRun = null;
         onFinished?.();
     };
 
-    abortRun = () => {
-        if (settled) {
-            return;
-        }
+    // Abort (Inertia error or host unmount) settles immediately: the pending
+    // swap is dropped, so a cancelled run never fires `onSwap` afterwards.
+    abortRun = settle;
 
-        // Error or cancel: stop the sequence, unblock the ready gate, and
-        // free the overlay plus the repeat-click lock immediately.
-        cancelled = true;
+    swapTimer = window.setTimeout(() => {
+        onSwap?.();
 
-        const waiter = readyWaiter;
+        // Reveal the stage after React has committed the swapped scene.
+        revealRaf = requestAnimationFrame(() => {
+            const fresh = stageElement();
 
-        readyWaiter = null;
-        waiter?.();
-        settle();
-    };
-
-    void (async () => {
-        try {
-            // 1. Close: both layers rise to full cover.
-            const close: KeyframeAnimationOptions = {
-                duration: CLOSE_MS,
-                easing: EASE,
-                fill: 'both',
-            };
-
-            await Promise.all([
-                animateTo(
-                    one,
-                    [
-                        {
-                            transform: 'translateY(108%) rotate(-4deg)',
-                            borderRadius: '48% 48% 0 0',
-                        },
-                        {
-                            transform: 'translateY(0) rotate(0)',
-                            borderRadius: '0',
-                        },
-                    ],
-                    close,
-                ),
-                animateTo(
-                    two,
-                    [
-                        {
-                            transform: 'translateY(112%) rotate(3deg)',
-                            borderRadius: '45% 45% 0 0',
-                        },
-                        {
-                            transform: 'translateY(0) rotate(0)',
-                            borderRadius: '0',
-                        },
-                    ],
-                    { ...close, delay: CLOSE_STAGGER },
-                ),
-            ]);
-
-            if (cancelled) {
+            if (!fresh || settled) {
                 return;
             }
 
-            // 2. Swap once under the closed layers, then the title appears.
-            onSwap?.();
-
-            if (cancelled) {
-                return;
-            }
-
-            await animateTo(
-                type,
+            fresh.getAnimations().forEach((a) => a.cancel());
+            fresh.animate(
                 [
-                    { opacity: 0, transform: 'translateY(12px)' },
-                    { opacity: 1, transform: 'translateY(0)' },
+                    {
+                        opacity: 0,
+                        transform:
+                            'perspective(900px) translateY(45px) rotateX(-5deg)',
+                        filter: 'blur(8px)',
+                    },
+                    {
+                        opacity: 1,
+                        transform:
+                            'perspective(900px) translateY(0) rotateX(0)',
+                        filter: 'blur(0)',
+                    },
                 ],
-                { duration: TITLE_IN_MS, easing: EASE, fill: 'both' },
+                {
+                    duration: 720,
+                    delay: 80,
+                    easing: 'cubic-bezier(.16,1,.3,1)',
+                    fill: 'both',
+                },
             );
+        });
+    }, SWAP_DELAY);
 
-            if (cancelled) {
-                return;
-            }
-
-            // 3. The title stays still at least 220 ms; the open phase also
-            // waits for the destination screen's readiness signal. A slow
-            // response only extends the closed state — nothing restarts.
-            await Promise.all([delay(TITLE_HOLD_MS), waitContentReady()]);
-
-            if (cancelled) {
-                return;
-            }
-
-            // 4. Layers open together; the title exits over 130 ms.
-            const open: KeyframeAnimationOptions = {
-                duration: OPEN_MS,
-                easing: EASE,
-                fill: 'both',
-            };
-
-            await Promise.all([
-                animateTo(
-                    one,
-                    [
-                        {
-                            transform: 'translateY(0) rotate(0)',
-                            borderRadius: '0',
-                        },
-                        {
-                            transform: 'translateY(-110%) rotate(3deg)',
-                            borderRadius: '0 0 46% 46%',
-                        },
-                    ],
-                    open,
-                ),
-                animateTo(
-                    two,
-                    [
-                        {
-                            transform: 'translateY(0) rotate(0)',
-                            borderRadius: '0',
-                        },
-                        {
-                            transform: 'translateY(-112%) rotate(-3deg)',
-                            borderRadius: '45% 45% 0 0',
-                        },
-                    ],
-                    { ...open, delay: OPEN_STAGGER },
-                ),
-                animateTo(
-                    type,
-                    [
-                        { opacity: 1, transform: 'translateY(0)' },
-                        { opacity: 0, transform: 'translateY(-12px)' },
-                    ],
-                    { duration: TITLE_OUT_MS, easing: EASE, fill: 'both' },
-                ),
-            ]);
-
-            if (cancelled) {
-                return;
-            }
-
-            settle();
-        } catch {
-            settle();
-        }
-    })();
+    layerOne.finished
+        .then(
+            () =>
+                new Promise((resolve) => {
+                    settleTimer = window.setTimeout(resolve, 75);
+                }),
+        )
+        .then(settle)
+        .catch(settle);
 
     return true;
 }
@@ -461,9 +362,6 @@ export default function SceneTransitionHost() {
         setMounted(true);
     }, []);
 
-    // Inertia `onFinish` does not mean React committed the destination, so
-    // readiness comes from `useSceneContentReady`; these listeners only
-    // cover failure paths that would otherwise wait forever.
     useEffect(() => {
         const offError = router.on('error', abortSceneTransition);
         const offNetwork = router.on('networkError', abortSceneTransition);
