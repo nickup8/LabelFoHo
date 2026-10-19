@@ -61,8 +61,8 @@ export default function ImportersIndex({ importer }: Props) {
         errors.name || errors.legal_address || errors.phone || '';
     const message = firstError;
 
-    // Logo reloads the saved session on the upload step; «Генератор» and the
-    // return link open the remembered wizard step when it was set.
+    // Logo and «Генератор» reload the saved session on the upload step; the
+    // return link opens the remembered wizard step when it was set.
     const goUpload = (event: ReactMouseEvent) => {
         if (!isPlainLeftClick(event)) {
             return;
@@ -113,9 +113,9 @@ export default function ImportersIndex({ importer }: Props) {
                     </Link>
                     <nav aria-label="Разделы приложения">
                         <Link
-                            href={readGeneratorReturn().url}
+                            href={uploadUrlFromReturn()}
                             prefetch
-                            onClick={goGenerator}
+                            onClick={goUpload}
                         >
                             Генератор этикеток
                         </Link>
