@@ -6,13 +6,21 @@ export interface LabelPdfWorkerRequest {
     templateType: LabelTemplateType;
 }
 
+/** Готовые файлы экспорта: общий PDF и ZIP с отдельными PDF. */
+export interface LabelPdfFiles {
+    /** Общий PDF со всеми метками. */
+    blob: Blob;
+    /** ZIP, где одна метка — один одностраничный PDF. */
+    zip: Blob;
+}
+
 export type LabelPdfWorkerResponse =
-    | { id: number; type: 'ready'; blob: Blob }
+    | { id: number; type: 'ready'; files: LabelPdfFiles }
     | { id: number; type: 'fit-error'; errorSkus: string[] }
     | { id: number; type: 'error'; message: string };
 
 interface JobHandlers {
-    onReady: (blob: Blob) => void;
+    onReady: (files: LabelPdfFiles) => void;
     onFitError: (errorSkus: string[]) => void;
     onError: (message: string) => void;
 }
@@ -20,8 +28,9 @@ interface JobHandlers {
 let jobSeq = 0;
 
 /**
- * Запускает сборку PDF в отдельном Web Worker (decideModes + pdf().toBlob()).
- * Возвращает функцию отмены: worker terminate-ится, его ответы отбрасываются.
+ * Запускает сборку файлов экспорта в отдельном Web Worker (decideModes,
+ * pdf().toBlob(), ZIP через fflate). Возвращает функцию отмены: worker
+ * terminate-ится, его ответы отбрасываются.
  */
 export function runLabelPdfJob(
     labels: LabelData[],
@@ -92,7 +101,7 @@ export function runLabelPdfJob(
         stop();
 
         if (message.type === 'ready') {
-            handlers.onReady(message.blob);
+            handlers.onReady(message.files);
         } else if (message.type === 'fit-error') {
             handlers.onFitError(message.errorSkus);
         } else {

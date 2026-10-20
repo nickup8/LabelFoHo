@@ -11,6 +11,8 @@ import type {
     LabelPdfWorkerRequest,
     LabelPdfWorkerResponse,
 } from '@/lib/labelPdfWorkerClient';
+import { buildZipEntryNames, zipPdfEntries } from '@/lib/labelPdfZip';
+import type { PdfZipEntry } from '@/lib/labelPdfZip';
 import type { LabelData, LabelTemplateType } from '@/types/labels';
 
 // URL шрифтов строятся от origin: в worker относительный путь разрешается от
@@ -64,39 +66,46 @@ async function handleJob({
     labels,
     templateType,
 }: LabelPdfWorkerRequest): Promise<void> {
-    if (templateType !== 'tag') {
-        post({
-            id,
-            type: 'ready',
-            blob: await documentBlob(labels, templateType),
-        });
+    let modes: LabelMode[] | undefined;
 
-        return;
-    }
+    if (templateType === 'tag') {
+        try {
+            const fit = await decideModes(labels);
 
-    let modes: LabelMode[];
+            if (fit.errorSkus.length > 0) {
+                post({ id, type: 'fit-error', errorSkus: fit.errorSkus });
 
-    try {
-        const fit = await decideModes(labels);
+                return;
+            }
 
-        if (fit.errorSkus.length > 0) {
-            post({ id, type: 'fit-error', errorSkus: fit.errorSkus });
+            modes = fit.modes;
+        } catch (error) {
+            post({ id, type: 'error', message: errorText(error) });
 
             return;
         }
-
-        modes = fit.modes;
-    } catch (error) {
-        post({ id, type: 'error', message: errorText(error) });
-
-        return;
     }
 
-    post({
-        id,
-        type: 'ready',
-        blob: await documentBlob(labels, templateType, modes),
-    });
+    // Общий PDF и ZIP со одностраничными файлами собираются последовательно;
+    // «ready» уходит только когда готовы оба файла, частичного архива не бывает.
+    const blob = await documentBlob(labels, templateType, modes);
+    const names = buildZipEntryNames(labels);
+    const entries: PdfZipEntry[] = [];
+
+    for (let index = 0; index < labels.length; index += 1) {
+        const single = await documentBlob(
+            [labels[index]],
+            templateType,
+            modes ? [modes[index]] : undefined,
+        );
+
+        entries.push({
+            name: names[index],
+            data: new Uint8Array(await single.arrayBuffer()),
+        });
+    }
+
+    post({ id, type: 'ready', files: { blob, zip: zipPdfEntries(entries) } });
 }
 
 workerScope.addEventListener('message', (event) => {

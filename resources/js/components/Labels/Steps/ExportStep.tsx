@@ -10,6 +10,7 @@ import {
 } from '@/components/Labels/FohoShell';
 import VolumeScene from '@/components/Labels/VolumeScene';
 import { runLabelPdfJob } from '@/lib/labelPdfWorkerClient';
+import type { LabelPdfFiles } from '@/lib/labelPdfWorkerClient';
 import labels from '@/routes/labels';
 import type {
     LabelData,
@@ -31,6 +32,21 @@ interface Props {
 }
 
 type Status = 'fetching' | 'compiling' | 'ready' | 'error';
+
+/** Object URL-ы готовых файлов: ZIP (основной) и общий PDF. */
+interface ExportUrls {
+    zip: string;
+    pdf: string;
+}
+
+function revokeExportUrls(urls: ExportUrls | null): void {
+    if (!urls) {
+        return;
+    }
+
+    URL.revokeObjectURL(urls.zip);
+    URL.revokeObjectURL(urls.pdf);
+}
 
 interface ImportErrorBody {
     error?: string;
@@ -128,8 +144,8 @@ export default function ExportStep({
     const [errorDetails, setErrorDetails] = useState<string[]>([]);
     const [readyShown, setReadyShown] = useState(false);
     const [fetchKey, setFetchKey] = useState(0);
-    const [objectUrl, setObjectUrl] = useState<string | null>(null);
-    const objectUrlRef = useRef<string | null>(null);
+    const [fileUrls, setFileUrls] = useState<ExportUrls | null>(null);
+    const fileUrlsRef = useRef<ExportUrls | null>(null);
     const readyRanRef = useRef(false);
 
     const scene = useSceneTransition();
@@ -138,7 +154,8 @@ export default function ExportStep({
     const backLabel =
         templateCount === 1 ? 'Назад к аудиту' : 'Назад к шаблону';
 
-    const fileName = `foho_labels_${sessionId}.pdf`;
+    const pdfFileName = `foho_labels_${sessionId}.pdf`;
+    const zipFileName = `foho_labels_${sessionId}.zip`;
 
     const handleBack = () =>
         router.get(
@@ -149,9 +166,30 @@ export default function ExportStep({
             },
         );
 
+    const handleNewBatch = () => {
+        scene.run({ stepId: 1, hold: true });
+
+        router.get(
+            labels.index({ query: { step: 1 } }).url,
+            {},
+            { preserveState: true },
+        );
+    };
+
     useWizardNav({
         back: handleBack,
         backLabel,
+        // На экране готовности левую сторону футера занимает «новый пакет»,
+        // справа остаётся «Назад» — как в остальных шагах.
+        lead: readyShown ? (
+            <button
+                type="button"
+                className="text-link"
+                onClick={handleNewBatch}
+            >
+                Создать новый пакет ↗
+            </button>
+        ) : null,
     });
 
     const creating =
@@ -179,9 +217,8 @@ export default function ExportStep({
 
     useEffect(() => {
         return () => {
-            if (objectUrlRef.current) {
-                URL.revokeObjectURL(objectUrlRef.current);
-            }
+            revokeExportUrls(fileUrlsRef.current);
+            fileUrlsRef.current = null;
         };
     }, []);
 
@@ -200,11 +237,9 @@ export default function ExportStep({
             setErrorDetails([]);
             setLabelsData(null);
 
-            if (objectUrlRef.current) {
-                URL.revokeObjectURL(objectUrlRef.current);
-                objectUrlRef.current = null;
-                setObjectUrl(null);
-            }
+            revokeExportUrls(fileUrlsRef.current);
+            fileUrlsRef.current = null;
+            setFileUrls(null);
 
             try {
                 const res = await fetch(
@@ -273,13 +308,16 @@ export default function ExportStep({
         };
     }, [sessionId, fetchKey, awaitingServer]);
 
-    const handleBlobReady = useCallback((b: Blob) => {
-        if (objectUrlRef.current) {
-            URL.revokeObjectURL(objectUrlRef.current);
-        }
+    const handleFilesReady = useCallback((files: LabelPdfFiles) => {
+        revokeExportUrls(fileUrlsRef.current);
 
-        objectUrlRef.current = URL.createObjectURL(b);
-        setObjectUrl(objectUrlRef.current);
+        const urls: ExportUrls = {
+            zip: URL.createObjectURL(files.zip),
+            pdf: URL.createObjectURL(files.blob),
+        };
+
+        fileUrlsRef.current = urls;
+        setFileUrls(urls);
         setStatus('ready');
     }, []);
 
@@ -293,7 +331,7 @@ export default function ExportStep({
         }
 
         return runLabelPdfJob(labelsData, templateType, {
-            onReady: handleBlobReady,
+            onReady: handleFilesReady,
             onFitError: (errorSkus) => {
                 setErrorMessage(
                     'Часть бирок не помещается на лист 712×419 даже в компактном режиме. Проверьте данные этих артикулов:',
@@ -309,17 +347,7 @@ export default function ExportStep({
                 setStatus('error');
             },
         });
-    }, [labelsData, templateType, handleBlobReady]);
-
-    const handleNewBatch = () => {
-        scene.run({ stepId: 1, hold: true });
-
-        router.get(
-            labels.index({ query: { step: 1 } }).url,
-            {},
-            { preserveState: true },
-        );
-    };
+    }, [labelsData, templateType, handleFilesReady]);
 
     const count = labelsData?.length ?? 0;
     const captionIndex =
@@ -393,50 +421,42 @@ export default function ExportStep({
                             Можно скачивать
                         </h2>
                         <p>
-                            {count}{' '}
-                            {pluralize(count, [
-                                'этикетка',
-                                'этикетки',
-                                'этикеток',
-                            ])}{' '}
-                            {pluralize(count, [
-                                'собрана',
-                                'собраны',
-                                'собраны',
-                            ])}{' '}
-                            в один PDF.
+                            Подготовлено этикеток: {count}. Выберите формат
+                            скачивания.
                         </p>
                     </div>
                     <div className="download-card">
                         <div className="file-icon">{docIcon}</div>
                         <div className="download-info">
-                            <strong>{fileName}</strong>
+                            <strong>{zipFileName}</strong>
                             <span>
-                                PDF · {count}{' '}
+                                ZIP · {count}{' '}
                                 {pluralize(count, [
-                                    'страница',
-                                    'страницы',
-                                    'страниц',
+                                    'PDF-файл',
+                                    'PDF-файла',
+                                    'PDF-файлов',
                                 ])}
                             </span>
                         </div>
-                        {objectUrl && (
+                        {fileUrls && (
                             <a
                                 className="primary download-now"
-                                href={objectUrl}
-                                download={fileName}
+                                href={fileUrls.zip}
+                                download={zipFileName}
                             >
-                                Скачать PDF <span aria-hidden="true">↓</span>
+                                Скачать ZIP <span aria-hidden="true">↓</span>
                             </a>
                         )}
                     </div>
-                    <button
-                        type="button"
-                        className="text-link new-batch"
-                        onClick={handleNewBatch}
-                    >
-                        Создать новый пакет ↗
-                    </button>
+                    {fileUrls && (
+                        <a
+                            className="text-link"
+                            href={fileUrls.pdf}
+                            download={pdfFileName}
+                        >
+                            Скачать одним файлом ↓
+                        </a>
+                    )}
                 </section>
             </>
         );

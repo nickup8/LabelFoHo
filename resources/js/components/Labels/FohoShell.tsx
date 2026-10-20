@@ -31,6 +31,8 @@ export interface WizardNav {
     next?: () => void;
     nextLabel?: string;
     nextDisabled?: boolean;
+    /** Узел слева в футере, рядом с actions (справа остаётся «Назад»). */
+    lead?: ReactNode;
 }
 
 const WizardNavSetterContext = createContext<(nav: WizardNav | null) => void>(
@@ -81,13 +83,13 @@ function WizardNavProvider({ children }: { children: ReactNode }) {
  */
 export function useWizardNav(nav: WizardNav): void {
     const setNav = useContext(WizardNavSetterContext);
-    const { back, backLabel, next, nextLabel, nextDisabled } = nav;
+    const { back, backLabel, next, nextLabel, nextDisabled, lead } = nav;
 
     useLayoutEffect(() => {
-        setNav({ back, backLabel, next, nextLabel, nextDisabled });
+        setNav({ back, backLabel, next, nextLabel, nextDisabled, lead });
 
         return () => setNav(null);
-    }, [setNav, back, backLabel, next, nextLabel, nextDisabled]);
+    }, [setNav, back, backLabel, next, nextLabel, nextDisabled, lead]);
 }
 
 export interface SceneRunRequest {
@@ -549,6 +551,7 @@ function ShellView({
                                 />
                                 <div className="stage">{view}</div>
                                 <div className="footer">
+                                    {nav?.lead}
                                     {templateDownloadUrl &&
                                         page === 'upload' && (
                                             <div

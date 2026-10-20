@@ -278,3 +278,6 @@
 .foho-root[data-theme] .sku-link{--underline-bottom:-2px}
 .foho-root[data-theme] .remove{--underline-inset-left:10px;--underline-bottom:7px}
 @media(max-width:620px){.foho-root[data-theme] .back{--underline-inset-left:5px;--underline-inset-right:5px;--underline-bottom:6px}.foho-root[data-theme] .remove{--underline-inset-left:5px}}
+
+/* Ready screen footer: «Создать новый пакет» слева, «Назад» справа; на узких экранах строка переносится, чтобы ссылки не наезжали. */
+:where(.foho-root) .footer{flex-wrap:wrap;row-gap:8px}
